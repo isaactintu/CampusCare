@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My Complaints</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='student_dashboard.css') }}">
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <div>
+                <h1>My Complaints</h1>
+                <p>Welcome, {{ student_name }}</p>
+            </div>
+
+            <div class="header-buttons">
+                <a href="/problem" class="new-btn">Submit New Complaint</a>
+                <a href="/logout" class="logout-btn">Logout</a>
+            </div>
+        </div>
+
+        {% if complaints %}
+            <div class="complaint-list">
+                {% for complaint in complaints %}
+                <div class="complaint-card">
+                    <div class="top-row">
+                        <h3>{{ complaint[0] }}</h3>
+                        <span class="status {{ complaint[4]|lower }}">
+                            {{ complaint[4] }}
+                        </span>
+                    </div>
+
+                    <p><strong>Category:</strong> {{ complaint[1] }}</p>
+                    <p><strong>Description:</strong> {{ complaint[2] }}</p>
+                    <p><strong>Priority:</strong> {{ complaint[3] }}</p>
+                    <p><strong>Date:</strong> {{ complaint[5] }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-box">
+                <h2>No complaints submitted yet</h2>
+                <p>Click below to submit your first complaint.</p>
+                <a href="/problem" class="new-btn">Submit Complaint</a>
+            </div>
+        {% endif %}
+    </div>
+
+</body>
+</html>

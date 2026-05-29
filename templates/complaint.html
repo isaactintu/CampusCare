@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampusCare Login Signup</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='cstyle.css') }}">
+</head>
+
+<body>
+
+<header>
+    <nav class="navbar">
+        <h2 class="logo">CampusCare</h2>
+        <ul class="nav-links">
+            <li><a href="/">Home</a></li>
+        </ul>
+    </nav>
+</header>
+
+<section class="main-container">
+
+    <div class="content">
+        <h1>Student Complaint Management System</h1>
+        <p>
+            A modern platform where students can register complaints,
+            track complaint status, and communicate directly with the
+            administration in a secure and efficient way.
+        </p>
+    </div>
+
+    <div class="form-card">
+
+        <div class="tabs">
+            <button class="tab-btn active" type="button" onclick="showForm('login')">Login</button>
+            <button class="tab-btn" type="button" onclick="showForm('signup')">Sign Up</button>
+        </div>
+
+        <!-- LOGIN FORM -->
+        <form id="loginForm" class="form active-form" action="/login-signup" method="POST">
+
+            <h2>Welcome Back</h2>
+            <p class="form-text">Login using roll number or email</p>
+
+            <input type="text" name="login_value" placeholder="Enter Roll No or Email" required>
+
+            <div class="password-box">
+                <input type="password" id="loginPassword" name="password" placeholder="Enter Password" required>
+                <span onclick="togglePassword('loginPassword')">👁</span>
+            </div>
+
+            <a href="/forgot-password" class="forgot-link">Forgot Password?</a>
+            
+
+            <button type="submit" name="action" value="login" class="btn">Login</button>
+
+            <p class="switch-text">
+                Don't have an account?
+                <span onclick="showForm('signup')">Sign up here</span>
+            </p>
+
+        </form>
+
+        <!-- SIGNUP FORM -->
+        <form id="signupForm" class="form" action="/login-signup" method="POST">
+
+            <h2>Create Account</h2>
+            <p class="form-text">Sign up using your student details</p>
+
+            <input type="text" name="roll_no" placeholder="Enter Student Roll No" required>
+
+            <input type="text" name="fullname" placeholder="Enter Full Name" required>
+
+            <input type="email" name="email" placeholder="Enter Student Email" required>
+
+            <div class="password-box">
+                <input type="password" id="signupPassword" name="password" placeholder="Create Password" required>
+                <span onclick="togglePassword('signupPassword')">👁</span>
+            </div>
+
+            <div class="password-box">
+                <input type="password" id="confirmPassword" name="confirm_password" placeholder="Confirm Password" required>
+                <span onclick="togglePassword('confirmPassword')">👁</span>
+            </div>
+
+            <button type="submit" name="action" value="signup" class="btn">Sign Up</button>
+
+            <p class="switch-text">
+                Already have an account?
+                <span onclick="showForm('login')">Login here</span>
+            </p>
+
+        </form>
+
+    </div>
+
+</section>
+
+<footer>
+    <p>© 2026 CampusCare | Student Complaint Management System</p>
+</footer>
+
+<script>
+function showForm(type) {
+    const loginForm = document.getElementById("loginForm");
+    const signupForm = document.getElementById("signupForm");
+    const tabButtons = document.querySelectorAll(".tab-btn");
+
+    if (type === "login") {
+        loginForm.classList.add("active-form");
+        signupForm.classList.remove("active-form");
+        tabButtons[0].classList.add("active");
+        tabButtons[1].classList.remove("active");
+    } else {
+        signupForm.classList.add("active-form");
+        loginForm.classList.remove("active-form");
+        tabButtons[1].classList.add("active");
+        tabButtons[0].classList.remove("active");
+    }
+}
+
+function togglePassword(inputId) {
+    const input = document.getElementById(inputId);
+    input.type = input.type === "password" ? "text" : "password";
+}
+</script>
+
+</body>
+</html>

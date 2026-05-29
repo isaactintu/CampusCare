@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Student Complaint Portal</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='pstyle.css') }}">
+</head>
+
+<body>
+
+<nav class="navbar">
+    <div class="logo">CampusCare</div>
+
+    <ul class="nav-links">
+        <li><a href="/">Home</a></li>
+        <li><a href="/track">Track</a></li>
+        <li><a href="/logout">Logout</a></li>
+    </ul>
+</nav>
+
+<div class="container">
+
+    <div class="left-section">
+        <h1>Student Complaint Portal</h1>
+
+        <p>
+            Report your campus problems easily.
+            Your name, register number, and email are automatically taken from your login account.
+        </p>
+
+        <div class="student-info">
+            <h3>Logged in as</h3>
+            <p><strong>Name:</strong> {{ student_name }}</p>
+            <p><strong>Roll No:</strong> {{ roll_no }}</p>
+            <p><strong>Email:</strong> {{ student_email }}</p>
+        </div>
+
+        <ul>
+            <li>✔ Hostel Issues</li>
+            <li>✔ Transport Problems</li>
+            <li>✔ Classroom Complaints</li>
+            <li>✔ Lab & WiFi Issues</li>
+            <li>✔ Library & Canteen Issues</li>
+        </ul>
+    </div>
+
+    <div class="right-section">
+
+        <form class="complaint-form" action="/submit-complaint" method="POST" autocomplete="off">
+
+            <h2>Register Complaint</h2>
+
+            <div class="input-group">
+                <label>Department</label>
+                <input type="text" name="department" placeholder="Enter your department" required>
+            </div>
+
+            <div class="input-group">
+                <label>Complaint Category</label>
+
+                <select name="category" required>
+                    <option value="">Select Complaint Category</option>
+                    <option value="Hostel Issue">Hostel Issue</option>
+                    <option value="Transport Issue">Transport Issue</option>
+                    <option value="Classroom Issue">Classroom Issue</option>
+                    <option value="Lab Issue">Lab Issue</option>
+                    <option value="WiFi Issue">WiFi Issue</option>
+                    <option value="Library Issue">Library Issue</option>
+                    <option value="Canteen Issue">Canteen Issue</option>
+                    <option value="Water Issue">Water Issue</option>
+                    <option value="Electricity Issue">Electricity Issue</option>
+                    <option value="Cleanliness Issue">Cleanliness Issue</option>
+                    <option value="Sports Facility Issue">Sports Facility Issue</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label>Complaint Description</label>
+                <textarea rows="5" name="description" placeholder="Describe your issue clearly..." required></textarea>
+            </div>
+
+            <div class="input-group">
+                <label>Priority Level</label>
+
+                <select name="priority" required>
+                    <option value="">Select Priority</option>
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                </select>
+            </div>
+
+            <button type="submit">Submit Complaint</button>
+
+        </form>
+
+    </div>
+
+</div>
+
+</body>
+</html>

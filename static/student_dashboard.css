@@ -1,0 +1,413 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+}
+
+body {
+    min-height: 100vh;
+    color: #fff;
+    background:
+        radial-gradient(circle at top left, rgba(56, 189, 248, 0.25), transparent 35%),
+        radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.22), transparent 35%),
+        linear-gradient(135deg, #020617, #0f172a, #1e293b);
+    overflow-x: hidden;
+}
+
+/* Background animated glow */
+body::before {
+    content: "";
+    position: fixed;
+    width: 420px;
+    height: 420px;
+    background: rgba(56, 189, 248, 0.18);
+    border-radius: 50%;
+    top: -120px;
+    right: -120px;
+    filter: blur(30px);
+    animation: floatGlow 7s ease-in-out infinite alternate;
+    z-index: -1;
+}
+
+body::after {
+    content: "";
+    position: fixed;
+    width: 350px;
+    height: 350px;
+    background: rgba(168, 85, 247, 0.18);
+    border-radius: 50%;
+    bottom: -100px;
+    left: -100px;
+    filter: blur(35px);
+    animation: floatGlow 8s ease-in-out infinite alternate-reverse;
+    z-index: -1;
+}
+
+@keyframes floatGlow {
+    from {
+        transform: translateY(0) scale(1);
+    }
+    to {
+        transform: translateY(35px) scale(1.08);
+    }
+}
+
+.dashboard-container {
+    width: 90%;
+    max-width: 1150px;
+    margin: 45px auto;
+    animation: fadeUp 0.9s ease forwards;
+}
+
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(35px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Header */
+.dashboard-header {
+    position: relative;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.09);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    padding: 30px;
+    border-radius: 24px;
+    margin-bottom: 35px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 25px;
+}
+
+.dashboard-header::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(
+        120deg,
+        transparent,
+        rgba(255, 255, 255, 0.18),
+        transparent
+    );
+    animation: shine 4s infinite;
+}
+
+@keyframes shine {
+    0% {
+        left: -100%;
+    }
+    50% {
+        left: 120%;
+    }
+    100% {
+        left: 120%;
+    }
+}
+
+.dashboard-header h1 {
+    font-size: 36px;
+    margin-bottom: 8px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    background: linear-gradient(90deg, #38bdf8, #a78bfa, #f472b6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.dashboard-header p {
+    color: #cbd5e1;
+    font-size: 15px;
+}
+
+/* Buttons */
+.header-buttons {
+    display: flex;
+    gap: 14px;
+    z-index: 2;
+}
+
+.new-btn,
+.logout-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 13px 22px;
+    color: #020617;
+    text-decoration: none;
+    border-radius: 14px;
+    font-weight: 700;
+    transition: all 0.35s ease;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+    position: relative;
+    overflow: hidden;
+}
+
+.new-btn::before,
+.logout-btn::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.25);
+    transform: translateX(-100%);
+    transition: 0.35s;
+}
+
+.new-btn:hover::before,
+.logout-btn:hover::before {
+    transform: translateX(0);
+}
+
+.new-btn {
+    background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+}
+
+.logout-btn {
+    background: linear-gradient(135deg, #fb7185, #ef4444);
+}
+
+.new-btn:hover,
+.logout-btn:hover {
+    transform: translateY(-4px) scale(1.03);
+}
+
+.new-btn:active,
+.logout-btn:active {
+    transform: scale(0.97);
+}
+
+/* Complaint Cards Grid */
+.complaint-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(285px, 1fr));
+    gap: 24px;
+}
+
+/* Complaint Card */
+.complaint-card {
+    position: relative;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.09);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    padding: 24px;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.28);
+    transition: all 0.35s ease;
+    animation: cardPop 0.7s ease forwards;
+}
+
+@keyframes cardPop {
+    from {
+        opacity: 0;
+        transform: translateY(35px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.complaint-card::before {
+    content: "";
+    position: absolute;
+    width: 120px;
+    height: 120px;
+    background: rgba(56, 189, 248, 0.18);
+    border-radius: 50%;
+    top: -50px;
+    right: -50px;
+    transition: 0.4s;
+}
+
+.complaint-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 24px;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(56,189,248,0.6), rgba(168,85,247,0.3), transparent);
+    -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: 0.35s;
+}
+
+.complaint-card:hover {
+    transform: translateY(-9px) scale(1.02);
+    background: rgba(255, 255, 255, 0.14);
+    box-shadow: 0 22px 45px rgba(56, 189, 248, 0.18);
+}
+
+.complaint-card:hover::before {
+    transform: scale(1.5);
+}
+
+.complaint-card:hover::after {
+    opacity: 1;
+}
+
+.top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+    position: relative;
+    z-index: 2;
+}
+
+.top-row h3 {
+    color: #38bdf8;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.complaint-card p {
+    margin-bottom: 11px;
+    color: #e2e8f0;
+    line-height: 1.6;
+    font-size: 14.5px;
+    position: relative;
+    z-index: 2;
+}
+
+.complaint-card p strong {
+    color: #ffffff;
+}
+
+/* Status Badges */
+.status {
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25);
+    animation: pulseBadge 1.8s infinite;
+}
+
+@keyframes pulseBadge {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.06);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.status.pending {
+    background: linear-gradient(135deg, #fde047, #facc15);
+    color: #422006;
+}
+
+.status.resolved {
+    background: linear-gradient(135deg, #4ade80, #22c55e);
+    color: #052e16;
+}
+
+.status.rejected {
+    background: linear-gradient(135deg, #fb7185, #ef4444);
+    color: #fff;
+}
+
+/* Empty Box */
+.empty-box {
+    text-align: center;
+    background: rgba(255, 255, 255, 0.09);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    padding: 60px 25px;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+    animation: fadeUp 0.9s ease forwards;
+}
+
+.empty-box h2 {
+    margin-bottom: 12px;
+    font-size: 30px;
+    background: linear-gradient(90deg, #38bdf8, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.empty-box p {
+    color: #cbd5e1;
+    margin-bottom: 24px;
+}
+
+/* Small scrollbar design */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #020617;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(#38bdf8, #8b5cf6);
+    border-radius: 20px;
+}
+
+/* Responsive */
+@media (max-width: 700px) {
+    .dashboard-container {
+        width: 92%;
+        margin: 25px auto;
+    }
+
+    .dashboard-header {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 24px;
+    }
+
+    .dashboard-header h1 {
+        font-size: 28px;
+    }
+
+    .header-buttons {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .new-btn,
+    .logout-btn {
+        width: 100%;
+        text-align: center;
+    }
+
+    .complaint-list {
+        grid-template-columns: 1fr;
+    }
+
+    .top-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+}

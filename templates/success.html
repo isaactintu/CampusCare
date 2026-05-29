@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width,
+          initial-scale=1.0">
+
+    <title>
+        Complaint Submitted
+    </title>
+
+    <link rel="stylesheet"  href="{{ url_for('static',filename='sstyle.css') }}">
+
+</head>
+
+<body>
+
+    <div class="success-box">
+
+        <h1>
+            Complaint Submitted Successfully
+        </h1>
+
+        <h2>
+
+            Complaint ID:
+            {{ complaint_id }}
+
+        </h2>
+
+        <p>
+
+            Please save this complaint ID
+            for tracking your complaint status.
+
+        </p>
+
+        <div class="btn-group">
+
+            <a href="/track"class="btn track-btn">Track Complaint</a>
+
+            <a href="/"class="btn home-btn"> Home </a>
+
+        </div>
+
+    </div>
+
+</body>
+
+</html>

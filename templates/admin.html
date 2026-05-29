@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>
+        Admin Dashboard - Student Complaint System
+    </title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='astyle.css') }}">
+</head>
+
+<body>
+
+    <div class="sidebar">
+
+        <h2>
+            Admin Panel
+        </h2>
+
+        <ul>
+            <li>
+                <a href="/admin">
+                    Dashboard
+                </a>
+            </li>
+
+            <li>
+                <a href="/admin">
+                    View Complaints
+                </a>
+            </li>
+
+            <li>
+                <a href="/admin-logout">
+                    Logout
+                </a>
+            </li>
+        </ul>
+
+    </div>
+
+    <div class="main-content">
+
+        <div class="topbar">
+
+            <h1>
+                CampusCare
+            </h1>
+
+            <div class="admin-profile">
+                <span>
+                    Welcome, Admin
+                </span>
+            </div>
+
+        </div>
+
+        <div class="cards">
+
+            <div class="card">
+                <h2>Total Complaints</h2>
+                <p>{{ total }}</p>
+            </div>
+
+            <div class="card">
+                <h2>Pending</h2>
+                <p>{{ pending }}</p>
+            </div>
+
+            <div class="card">
+                <h2>In Process</h2>
+                <p>{{ inprocess }}</p>
+            </div>
+
+            <div class="card">
+                <h2>Resolved</h2>
+                <p>{{ resolved }}</p>
+            </div>
+
+            <div class="card">
+                <h2>Rejected</h2>
+                <p>{{ rejected }}</p>
+            </div>
+
+        </div>
+
+        <div class="table-section">
+
+            <h2>
+                Recent Complaints
+            </h2>
+
+            <table>
+
+                <thead>
+                    <tr>
+                        <th>Complaint ID</th>
+                        <th>Student Name</th>
+                        <th>Department</th>
+                        <th>Issue</th>
+                        <th>Status</th>
+                        <th>Submitted Date</th>
+                        <th>Updated Date</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    {% for complaint in complaints %}
+
+                    <tr>
+                        <td>{{ complaint[1] }}</td>
+                        <td>{{ complaint[2] }}</td>
+                        <td>{{ complaint[4] }}</td>
+                        <td>{{ complaint[5] }}</td>
+
+                        {% if complaint[8] == 'Resolved' %}
+
+                            <td class="resolved">
+                                {{ complaint[8] }}
+                            </td>
+
+                        {% elif complaint[8] == 'In Process' %}
+
+                            <td class="inprocess">
+                                {{ complaint[8] }}
+                            </td>
+
+                        {% elif complaint[8] == 'Rejected' %}
+
+                            <td class="rejected">
+                                {{ complaint[8] }}
+                            </td>
+
+                        {% else %}
+
+                            <td class="pending">
+                                {{ complaint[8] }}
+                            </td>
+
+                        {% endif %}
+
+                        <!-- Because your table has:
+                             complaint[11] = submitted_date
+                             complaint[12] = updated_date -->
+                        <td>{{ complaint[11] }}</td>
+                        <td>{{ complaint[12] }}</td>
+
+                        <td>
+
+                            {% if complaint[8] == 'Resolved' %}
+
+                                <button class="view-btn">
+                                    Completed
+                                </button>
+
+                            {% elif complaint[8] == 'Rejected' %}
+
+                                <button class="reject-btn">
+                                    Rejected
+                                </button>
+
+                            {% elif complaint[8] == 'In Process' %}
+
+                                <a href="/resolve/{{ complaint[0] }}">
+                                    <button class="resolve-btn">
+                                        Resolve
+                                    </button>
+                                </a>
+
+                                <a href="/reject/{{ complaint[0] }}">
+                                    <button class="reject-btn">
+                                        Reject
+                                    </button>
+                                </a>
+
+                            {% else %}
+
+                                <a href="/inprocess/{{ complaint[0] }}">
+                                    <button class="process-btn">
+                                        In Process
+                                    </button>
+                                </a>
+
+                                <a href="/reject/{{ complaint[0] }}">
+                                    <button class="reject-btn">
+                                        Reject
+                                    </button>
+                                </a>
+
+                            {% endif %}
+
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</body>
+
+</html>

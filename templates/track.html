@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width,
+          initial-scale=1.0">
+
+    <title>
+        Track Complaint
+    </title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static',
+          filename='tstyle.css') }}">
+
+</head>
+
+<body>
+
+    <!-- Navbar -->
+
+    <header>
+
+        <nav class="navbar">
+
+            <h2 class="logo">
+                CampusCare
+            </h2>
+
+            <ul class="nav-links">
+
+                <li>
+                    <a href="/">
+                        Home
+                    </a>
+                </li>
+
+                <li>
+                    <a href="/complaint">
+                        Register Complaint
+                    </a>
+                </li>
+
+            </ul>
+
+        </nav>
+
+    </header>
+
+    <!-- Main Container -->
+
+    <section class="track-container">
+
+        <!-- Left Side -->
+
+        <div class="left-section">
+
+            <h1>
+                Track Your Complaint
+            </h1>
+
+            <p>
+                Students can check the current
+                status of their complaints
+                using Complaint ID.
+            </p>
+
+            <div class="status-info">
+
+                <div class="status-card pending">
+
+                    <h3>
+                        Pending
+                    </h3>
+
+                    <p>
+                        Complaint received and
+                        waiting for action.
+                    </p>
+
+                </div>
+
+                <div class="status-card progress">
+
+                    <h3>
+                        In Process
+                    </h3>
+
+                    <p>
+                        Administration is
+                        working on the issue.
+                    </p>
+
+                </div>
+
+                <div class="status-card resolved">
+
+                    <h3>
+                        Resolved
+                    </h3>
+
+                    <p>
+                        The complaint has been
+                        solved successfully.
+                    </p>
+
+                </div>
+
+                <div class="status-card rejected-card">
+
+                    <h3>
+                        Rejected
+                    </h3>
+
+                    <p>
+                        Complaint was not accepted
+                        due to invalid or incomplete details.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Right Side -->
+
+        <div class="right-section">
+
+            <div class="track-box">
+
+                <h2>
+                    Check Complaint Status
+                </h2>
+
+                <!-- FORM -->
+
+                <form method="POST" autocomplete="off">
+
+                    <input type="text"
+                           name="complaint_id"
+                           placeholder="Enter Complaint ID"
+                           required>
+
+                    <button type="submit">
+                        Track Complaint
+                    </button>
+
+                </form>
+
+                <!-- RESULT SECTION -->
+
+                {% if complaint %}
+
+                <div class="result-box">
+
+                    <h3>
+                        Complaint Details
+                    </h3>
+
+                    <p>
+                        <strong>Complaint ID:</strong>
+                        {{ complaint[1] }}
+                    </p>
+
+                    <p>
+                        <strong>Student Name:</strong>
+                        {{ complaint[2] }}
+                    </p>
+
+                    <p>
+                        <strong>Department:</strong>
+                        {{ complaint[4] }}
+                    </p>
+
+                    <p>
+                        <strong>Category:</strong>
+                        {{ complaint[5] }}
+                    </p>
+
+                    <p>
+                        <strong>Description:</strong>
+                        {{ complaint[6] }}
+                    </p>
+
+                    <p>
+                        <strong>Priority:</strong>
+                        {{ complaint[7] }}
+                    </p>
+
+                    <p>
+                        <strong>Status:</strong>
+
+                        {% if complaint[8] == 'Resolved' %}
+
+                            <span class="resolved-text">
+                                {{ complaint[8] }}
+                            </span>
+
+                        {% elif complaint[8] == 'In Process' %}
+
+                            <span class="process-text">
+                                {{ complaint[8] }}
+                            </span>
+
+                        {% elif complaint[8] == 'Rejected' %}
+
+                            <span class="rejected-text">
+                                {{ complaint[8] }}
+                            </span>
+
+                        {% else %}
+
+                            <span class="pending-text">
+                                {{ complaint[8] }}
+                            </span>
+
+                        {% endif %}
+
+                    </p>
+
+                    <!-- Because your custom Flask track query has:
+                         complaint[10] = submitted_date
+                         complaint[11] = updated_date -->
+                    <p>
+                        <strong>Submitted Date:</strong>
+                        {{ complaint[10] }}
+                    </p>
+
+                    <p>
+                        <strong>Last Updated:</strong>
+                        {{ complaint[11] }}
+                    </p>
+
+                </div>
+
+                {% elif request.method == 'POST' %}
+
+                <div class="result-box">
+
+                    <h3>
+                        No Complaint Found
+                    </h3>
+
+                    <p>
+                        Please check the Complaint ID.
+                    </p>
+
+                </div>
+
+                {% endif %}
+
+            </div>
+
+        </div>
+
+    </section>
+
+</body>
+</html>
