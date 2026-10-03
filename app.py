@@ -1,12 +1,13 @@
+
 from flask import Flask, render_template, request, redirect, session
 from supabase import create_client, Client
 from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
+
 import os
+
 from datetime import datetime, timezone, timedelta
-
-
 
 
 # ============================================================
@@ -96,30 +97,74 @@ CampusCare Admin
 
         mail.send(msg)
 
+        print(
+            f"Status email sent to {student_email} "
+            f"for {complaint_id}: {status}"
+        )
+
     except Exception as e:
 
         print("Email sending failed:", e)
 
+
+# ============================================================
+# DATE/TIME FORMAT FUNCTION
+# ============================================================
+
 def format_datetime(value):
+
     if not value:
         return ""
 
     try:
-        # Convert Supabase ISO string to datetime
-        dt = datetime.fromisoformat(
-            str(value).replace("Z", "  ")
+
+        # ----------------------------------------------------
+        # Supabase normally returns ISO timestamps such as:
+        #
+        # 2026-10-03T07:30:00+00:00
+        #
+        # or:
+        #
+        # 2026-10-03T07:30:00Z
+        # ----------------------------------------------------
+
+        value_string = str(value)
+
+        if value_string.endswith("Z"):
+            value_string = value_string[:-1] + "+00:00"
+
+        dt = datetime.fromisoformat(value_string)
+
+        # ----------------------------------------------------
+        # Convert UTC to Indian Standard Time
+        # ----------------------------------------------------
+
+        ist = timezone(
+            timedelta(
+                hours=5,
+                minutes=30
+            )
         )
 
-        # Convert UTC to Indian Standard Time
-        ist = timezone(timedelta(hours=5, minutes=30))
+        if dt.tzinfo is None:
 
-        if dt.tzinfo is not None:
-            dt = dt.astimezone(ist)
+            dt = dt.replace(
+                tzinfo=timezone.utc
+            )
 
-        return dt.strftime("%d-%m-%Y %H:%M:%S")
+        dt = dt.astimezone(ist)
+
+        return dt.strftime(
+            "%d-%m-%Y %H:%M:%S"
+        )
 
     except Exception as e:
-        print("Date formatting error:", e)
+
+        print(
+            "Date formatting error:",
+            e
+        )
+
         return str(value)
 
 
@@ -130,7 +175,9 @@ def format_datetime(value):
 @app.route('/')
 def home():
 
-    return render_template('home.html')
+    return render_template(
+        'home.html'
+    )
 
 
 # ============================================================
@@ -140,7 +187,9 @@ def home():
 @app.route('/complaint')
 def complaint():
 
-    return render_template('complaint.html')
+    return render_template(
+        'complaint.html'
+    )
 
 
 # ============================================================
@@ -164,13 +213,24 @@ def login_signup():
             fullname = request.form.get('fullname')
             email = request.form.get('email')
             password = request.form.get('password')
-            confirm_password = request.form.get('confirm_password')
+            confirm_password = request.form.get(
+                'confirm_password'
+            )
 
-            if not roll_no or not fullname or not email or not password or not confirm_password:
+            if (
+                not roll_no
+                or not fullname
+                or not email
+                or not password
+                or not confirm_password
+            ):
                 return "All fields are required ❌"
 
             if password != confirm_password:
-                return "Password and Confirm Password do not match ❌"
+                return (
+                    "Password and Confirm Password "
+                    "do not match ❌"
+                )
 
             # ------------------------------------------------
             # CHECK ROLL NUMBER
@@ -208,7 +268,9 @@ def login_signup():
             # HASH PASSWORD
             # ------------------------------------------------
 
-            hashed_password = generate_password_hash(password)
+            hashed_password = generate_password_hash(
+                password
+            )
 
             # ------------------------------------------------
             # INSERT STUDENT
@@ -240,7 +302,9 @@ def login_signup():
             session['student_name'] = student.get('fullname')
             session['student_email'] = student.get('email')
 
-            return redirect('/student-dashboard')
+            return redirect(
+                '/student-dashboard'
+            )
 
 
         # ====================================================
@@ -249,11 +313,19 @@ def login_signup():
 
         elif action == "login":
 
-            login_value = request.form.get('login_value')
-            password = request.form.get('password')
+            login_value = request.form.get(
+                'login_value'
+            )
+
+            password = request.form.get(
+                'password'
+            )
 
             if not login_value or not password:
-                return "Roll Number / Email and Password are required ❌"
+                return (
+                    "Roll Number / Email and "
+                    "Password are required ❌"
+                )
 
             # ------------------------------------------------
             # SEARCH BY ROLL NUMBER OR EMAIL
@@ -263,24 +335,33 @@ def login_signup():
                 supabase
                 .table("students")
                 .select(
-                    "id, roll_no, fullname, email, password_hash"
+                    "id, roll_no, fullname, "
+                    "email, password_hash"
                 )
                 .or_(
-                    f"roll_no.eq.{login_value},email.eq.{login_value}"
+                    f"roll_no.eq.{login_value},"
+                    f"email.eq.{login_value}"
                 )
                 .limit(1)
                 .execute()
             )
 
             if not result.data:
-                return "Invalid Roll Number / Email or Password ❌"
+                return (
+                    "Invalid Roll Number / Email "
+                    "or Password ❌"
+                )
 
             user = result.data[0]
 
-            stored_password = user.get("password_hash")
+            stored_password = user.get(
+                "password_hash"
+            )
 
             if not stored_password:
-                return "Student password is not configured ❌"
+                return (
+                    "Student password is not configured ❌"
+                )
 
             # ------------------------------------------------
             # PASSWORD CHECK
@@ -304,9 +385,14 @@ def login_signup():
                 session['student_name'] = user.get('fullname')
                 session['student_email'] = user.get('email')
 
-                return redirect('/student-dashboard')
+                return redirect(
+                    '/student-dashboard'
+                )
 
-            return "Invalid Roll Number / Email or Password ❌"
+            return (
+                "Invalid Roll Number / Email "
+                "or Password ❌"
+            )
 
 
         # ====================================================
@@ -319,9 +405,14 @@ def login_signup():
 
     except Exception as err:
 
-        print("LOGIN/SIGNUP ERROR:", repr(err))
+        print(
+            "LOGIN/SIGNUP ERROR:",
+            repr(err)
+        )
 
-        return "Database connection/query error ❌"
+        return (
+            "Database connection/query error ❌"
+        )
 
 
 # ============================================================
@@ -336,13 +427,23 @@ def forgot_password():
         roll_no = request.form.get('roll_no')
         email = request.form.get('email')
         new_password = request.form.get('new_password')
-        confirm_password = request.form.get('confirm_password')
+        confirm_password = request.form.get(
+            'confirm_password'
+        )
 
-        if not roll_no or not email or not new_password or not confirm_password:
+        if (
+            not roll_no
+            or not email
+            or not new_password
+            or not confirm_password
+        ):
             return "All fields are required ❌"
 
         if new_password != confirm_password:
-            return "New Password and Confirm Password do not match ❌"
+            return (
+                "New Password and Confirm Password "
+                "do not match ❌"
+            )
 
         try:
 
@@ -361,13 +462,18 @@ def forgot_password():
             )
 
             if not result.data:
-                return "Invalid Roll Number or Registered Email ❌"
+                return (
+                    "Invalid Roll Number or "
+                    "Registered Email ❌"
+                )
 
             # ------------------------------------------------
             # HASH NEW PASSWORD
             # ------------------------------------------------
 
-            hashed_password = generate_password_hash(new_password)
+            hashed_password = generate_password_hash(
+                new_password
+            )
 
             # ------------------------------------------------
             # UPDATE
@@ -393,9 +499,15 @@ def forgot_password():
 
         except Exception as err:
 
-            print("FORGOT PASSWORD ERROR:", repr(err))
+            print(
+                "FORGOT PASSWORD ERROR:",
+                repr(err)
+            )
 
-            return "Database error while resetting password ❌"
+            return (
+                "Database error while "
+                "resetting password ❌"
+            )
 
     return render_template(
         'reset_password.html'
@@ -415,26 +527,15 @@ def student_dashboard():
     roll_no = session.get('roll_no')
 
     if not roll_no:
+
         session.clear()
+
         return redirect('/complaint')
 
     try:
 
         # ----------------------------------------------------
-        # IMPORTANT
-        #
-        # Your HTML expects:
-        #
-        # complaint[0] = complaint_id
-        # complaint[1] = category
-        # complaint[2] = description
-        # complaint[3] = priority
-        # complaint[4] = status
-        # complaint[5] = department
-        # complaint[6] = submitted_date
-        # complaint[7] = updated_date
-        #
-        # So we convert Supabase dictionaries into tuples.
+        # GET STUDENT COMPLAINTS
         # ----------------------------------------------------
 
         result = (
@@ -450,7 +551,10 @@ def student_dashboard():
                 "submitted_date, "
                 "updated_date"
             )
-            .eq("register_number", roll_no)
+            .eq(
+                "register_number",
+                roll_no
+            )
             .order(
                 "submitted_date",
                 desc=True
@@ -460,43 +564,89 @@ def student_dashboard():
 
         complaints_data = result.data or []
 
-        # ----------------------------------------------------
-        # CONVERT SUPABASE DICTIONARIES TO MYSQL-STYLE TUPLES
-        # ----------------------------------------------------
-
         complaints = []
+
+        # ----------------------------------------------------
+        # CONVERT TO TUPLES FOR HTML
+        # ----------------------------------------------------
 
         for complaint in complaints_data:
 
             complaint_tuple = (
-                complaint.get("complaint_id"),
-                complaint.get("category"),
-                complaint.get("description"),
-                complaint.get("priority"),
-                complaint.get("status"),
-                complaint.get("department"),
-                format_datetime(complaint.get("submitted_date")),
-                format_datetime(complaint.get("submitted_date")), 
-                format_datetime(complaint.get("updated_date"))
+
+                complaint.get(
+                    "complaint_id"
+                ),
+
+                complaint.get(
+                    "category"
+                ),
+
+                complaint.get(
+                    "description"
+                ),
+
+                complaint.get(
+                    "priority"
+                ),
+
+                complaint.get(
+                    "status"
+                ),
+
+                complaint.get(
+                    "department"
+                ),
+
+                format_datetime(
+                    complaint.get(
+                        "submitted_date"
+                    )
+                ),
+
+                format_datetime(
+                    complaint.get(
+                        "updated_date"
+                    )
+                )
             )
 
-            complaints.append(complaint_tuple)
+            complaints.append(
+                complaint_tuple
+            )
 
-        print("Student Roll Number:", roll_no)
-        print("Student Complaints:", complaints)
+        print(
+            "Student Roll Number:",
+            roll_no
+        )
+
+        print(
+            "Student Complaints:",
+            complaints
+        )
 
         return render_template(
             'student_dashboard.html',
             complaints=complaints,
-            student_name=session.get('student_name'),
-            roll_no=session.get('roll_no')
+            student_name=session.get(
+                'student_name'
+            ),
+            roll_no=session.get(
+                'roll_no'
+            )
         )
 
     except Exception as err:
 
-        print("STUDENT DASHBOARD ERROR:", repr(err))
+        print(
+            "STUDENT DASHBOARD ERROR:",
+            repr(err)
+        )
 
-        return "Database error while loading student dashboard ❌"
+        return (
+            "Database error while loading "
+            "student dashboard ❌"
+        )
 
 
 # ============================================================
@@ -508,7 +658,9 @@ def logout():
 
     session.clear()
 
-    return redirect('/complaint')
+    return redirect(
+        '/complaint'
+    )
 
 
 # ============================================================
@@ -523,9 +675,15 @@ def problem():
 
     return render_template(
         'problem.html',
-        student_name=session.get('student_name'),
-        roll_no=session.get('roll_no'),
-        student_email=session.get('student_email')
+        student_name=session.get(
+            'student_name'
+        ),
+        roll_no=session.get(
+            'roll_no'
+        ),
+        student_email=session.get(
+            'student_email'
+        )
     )
 
 
@@ -539,17 +697,44 @@ def submit_complaint():
     if 'student_email' not in session:
         return redirect('/complaint')
 
-    student_name = session.get('student_name')
-    register_number = session.get('roll_no')
-    email = session.get('student_email')
+    student_name = session.get(
+        'student_name'
+    )
 
-    department = request.form.get('department')
-    category = request.form.get('category')
-    description = request.form.get('description')
-    priority = request.form.get('priority')
+    register_number = session.get(
+        'roll_no'
+    )
 
-    if not department or not category or not description or not priority:
-        return "All complaint fields are required ❌"
+    email = session.get(
+        'student_email'
+    )
+
+    department = request.form.get(
+        'department'
+    )
+
+    category = request.form.get(
+        'category'
+    )
+
+    description = request.form.get(
+        'description'
+    )
+
+    priority = request.form.get(
+        'priority'
+    )
+
+    if (
+        not department
+        or not category
+        or not description
+        or not priority
+    ):
+        return (
+            "All complaint fields "
+            "are required ❌"
+        )
 
     try:
 
@@ -574,7 +759,9 @@ def submit_complaint():
         )
 
         if not result.data:
-            return "Complaint submission failed ❌"
+            return (
+                "Complaint submission failed ❌"
+            )
 
         inserted_complaint = result.data[0]
 
@@ -582,10 +769,14 @@ def submit_complaint():
         # GET AUTO GENERATED ID
         # ----------------------------------------------------
 
-        complaint_number = inserted_complaint.get("id")
+        complaint_number = inserted_complaint.get(
+            "id"
+        )
 
         if complaint_number is None:
-            return "Complaint ID generation failed ❌"
+            return (
+                "Complaint ID generation failed ❌"
+            )
 
         complaint_id = f"CMP{complaint_number}"
 
@@ -599,12 +790,17 @@ def submit_complaint():
             .update({
                 "complaint_id": complaint_id
             })
-            .eq("id", complaint_number)
+            .eq(
+                "id",
+                complaint_number
+            )
             .execute()
         )
 
         if not update_result.data:
-            return "Complaint ID generation failed ❌"
+            return (
+                "Complaint ID generation failed ❌"
+            )
 
         # ----------------------------------------------------
         # SEND EMAIL
@@ -623,14 +819,21 @@ def submit_complaint():
 
     except Exception as err:
 
-        print("SUBMIT COMPLAINT ERROR:", repr(err))
+        print(
+            "SUBMIT COMPLAINT ERROR:",
+            repr(err)
+        )
 
-        return "Complaint submission failed due to database error ❌"
+        return (
+            "Complaint submission failed "
+            "due to database error ❌"
+        )
 
 
 # ============================================================
 # TRACK COMPLAINT
 # ============================================================
+
 @app.route('/track', methods=['GET', 'POST'])
 def track():
 
@@ -638,10 +841,15 @@ def track():
 
     if request.method == 'POST':
 
-        complaint_id = request.form.get('complaint_id', '').strip()
+        complaint_id = request.form.get(
+            'complaint_id',
+            ''
+        ).strip()
 
         if not complaint_id:
-            return "Complaint ID is required ❌"
+            return (
+                "Complaint ID is required ❌"
+            )
 
         try:
 
@@ -675,43 +883,68 @@ def track():
                 data = result.data[0]
 
                 # ------------------------------------------
-                # FORMAT DATES HERE
+                # FORMAT DATES
                 # ------------------------------------------
 
                 submitted_date = format_datetime(
-                    data.get("submitted_date")
+                    data.get(
+                        "submitted_date"
+                    )
                 )
 
                 updated_date = format_datetime(
-                    data.get("updated_date")
+                    data.get(
+                        "updated_date"
+                    )
                 )
 
                 # ------------------------------------------
-                # KEEP SAME TUPLE ORDER FOR YOUR HTML
+                # TUPLE ORDER
                 # ------------------------------------------
 
                 complaint = (
+
                     data.get("id"),                  # [0]
+
                     data.get("complaint_id"),        # [1]
+
                     data.get("student_name"),        # [2]
+
                     data.get("register_number"),     # [3]
+
                     data.get("department"),          # [4]
+
                     data.get("category"),            # [5]
+
                     data.get("description"),         # [6]
+
                     data.get("priority"),            # [7]
+
                     data.get("status"),              # [8]
+
                     data.get("email"),               # [9]
+
                     submitted_date,                  # [10]
-                    updated_date                    # [11]
+
+                    updated_date                     # [11]
                 )
 
-                print("TRACK COMPLAINT:", complaint)
+                print(
+                    "TRACK COMPLAINT:",
+                    complaint
+                )
 
         except Exception as err:
 
-            print("TRACK COMPLAINT ERROR:", repr(err))
+            print(
+                "TRACK COMPLAINT ERROR:",
+                repr(err)
+            )
 
-            return "Database error while tracking complaint ❌"
+            return (
+                "Database error while "
+                "tracking complaint ❌"
+            )
 
     return render_template(
         'track.html',
@@ -728,11 +961,19 @@ def admin_login():
 
     if request.method == 'POST':
 
-        username = request.form.get('username')
-        password = request.form.get('password')
+        username = request.form.get(
+            'username'
+        )
+
+        password = request.form.get(
+            'password'
+        )
 
         if not username or not password:
-            return "Username and Password are required ❌"
+            return (
+                "Username and Password "
+                "are required ❌"
+            )
 
         try:
 
@@ -755,42 +996,44 @@ def admin_login():
             )
 
             if not result.data:
-                return "Invalid Admin Credentials ❌"
+                return (
+                    "Invalid Admin Credentials ❌"
+                )
 
             admin_data = result.data[0]
 
-            stored_password = admin_data.get("password")
+            stored_password = admin_data.get(
+                "password"
+            )
 
             if not stored_password:
-                return "Admin password is not configured ❌"
+                return (
+                    "Admin password is not "
+                    "configured ❌"
+                )
 
             # ------------------------------------------------
-            # ADMIN PASSWORD COMPATIBILITY
-            #
-            # Your OLD MYSQL system used:
-            #
-            # WHERE username=%s AND password=%s
-            #
-            # Therefore, if the password in Supabase is still
-            # plain text, compare directly.
-            #
-            # If later you store a Werkzeug hash, the code
-            # below can also verify the hash.
+            # PASSWORD CHECK
             # ------------------------------------------------
 
             password_valid = False
 
-            # Check if password looks like a Werkzeug hash
             if (
-                stored_password.startswith("pbkdf2:")
-                or stored_password.startswith("scrypt:")
+                stored_password.startswith(
+                    "pbkdf2:"
+                )
+                or stored_password.startswith(
+                    "scrypt:"
+                )
             ):
 
                 try:
 
-                    password_valid = check_password_hash(
-                        stored_password,
-                        password
+                    password_valid = (
+                        check_password_hash(
+                            stored_password,
+                            password
+                        )
                     )
 
                 except Exception:
@@ -799,7 +1042,6 @@ def admin_login():
 
             else:
 
-                # Existing MySQL-style plain password
                 password_valid = (
                     stored_password == password
                 )
@@ -811,18 +1053,34 @@ def admin_login():
             if password_valid:
 
                 session['admin_logged_in'] = True
-                session['admin_id'] = admin_data.get('id')
-                session['admin_username'] = admin_data.get('username')
 
-                return redirect('/admin')
+                session['admin_id'] = (
+                    admin_data.get('id')
+                )
 
-            return "Invalid Admin Credentials ❌"
+                session['admin_username'] = (
+                    admin_data.get('username')
+                )
+
+                return redirect(
+                    '/admin'
+                )
+
+            return (
+                "Invalid Admin Credentials ❌"
+            )
 
         except Exception as err:
 
-            print("ADMIN LOGIN ERROR:", repr(err))
+            print(
+                "ADMIN LOGIN ERROR:",
+                repr(err)
+            )
 
-            return "Database error during admin login ❌"
+            return (
+                "Database error during "
+                "admin login ❌"
+            )
 
     return render_template(
         'adlog.html'
@@ -836,11 +1094,24 @@ def admin_login():
 @app.route('/admin-logout')
 def admin_logout():
 
-    session.pop('admin_logged_in', None)
-    session.pop('admin_id', None)
-    session.pop('admin_username', None)
+    session.pop(
+        'admin_logged_in',
+        None
+    )
 
-    return redirect('/admin-login')
+    session.pop(
+        'admin_id',
+        None
+    )
+
+    session.pop(
+        'admin_username',
+        None
+    )
+
+    return redirect(
+        '/admin-login'
+    )
 
 
 # ============================================================
@@ -850,36 +1121,17 @@ def admin_logout():
 @app.route('/admin')
 def admin():
 
-    if not session.get('admin_logged_in'):
-        return redirect('/admin-login')
+    if not session.get(
+        'admin_logged_in'
+    ):
+        return redirect(
+            '/admin-login'
+        )
 
     try:
 
         # ----------------------------------------------------
-        # IMPORTANT
-        #
-        # Your OLD admin.html expects:
-        #
-        # complaint[0]  = id
-        # complaint[1]  = complaint_id
-        # complaint[2]  = student_name
-        # complaint[3]  = register_number
-        # complaint[4]  = department
-        # complaint[5]  = category
-        # complaint[6]  = description
-        # complaint[7]  = priority
-        # complaint[8]  = status
-        # complaint[9]  = email
-        # complaint[10] = submitted_date
-        # complaint[11] = submitted_date
-        # complaint[12] = updated_date
-        #
-        # Your old HTML explicitly uses:
-        #
-        # complaint[11]
-        # complaint[12]
-        #
-        # Therefore we create the exact 13-value structure.
+        # GET COMPLAINTS
         # ----------------------------------------------------
 
         complaints_result = (
@@ -897,7 +1149,6 @@ def admin():
                 "status, "
                 "email, "
                 "submitted_date, "
-                "submitted_date, "
                 "updated_date"
             )
             .order(
@@ -907,31 +1158,105 @@ def admin():
             .execute()
         )
 
-        complaints_data = complaints_result.data or []
+        complaints_data = (
+            complaints_result.data or []
+        )
 
         complaints = []
+
+        # ----------------------------------------------------
+        # CREATE TUPLES FOR admin.html
+        #
+        # [0]  id
+        # [1]  complaint_id
+        # [2]  student_name
+        # [3]  register_number
+        # [4]  department
+        # [5]  category
+        # [6]  description
+        # [7]  priority
+        # [8]  status
+        # [9]  email
+        # [10] submitted_date
+        # [11] submitted_date
+        # [12] updated_date
+        #
+        # Your current HTML uses:
+        # complaint[11] = submitted date
+        # complaint[12] = updated date
+        # ----------------------------------------------------
 
         for complaint in complaints_data:
 
             complaint_tuple = (
-                complaint.get("id"),                 # [0]
-                complaint.get("complaint_id"),       # [1]
-                complaint.get("student_name"),       # [2]
-                complaint.get("register_number"),    # [3]
-                complaint.get("department"),         # [4]
-                complaint.get("category"),           # [5]
-                complaint.get("description"),        # [6]
-                complaint.get("priority"),           # [7]
-                complaint.get("status"),             # [8]
-                complaint.get("email"),              # [9]
-                format_datetime(complaint.get("submitted_date")),     # [10]
-                format_datetime(complaint.get("submitted_date")),     # [11]
-                format_datetime(complaint.get("updated_date"))        # [12]
+
+                complaint.get(
+                    "id"
+                ),                                      # [0]
+
+                complaint.get(
+                    "complaint_id"
+                ),                                      # [1]
+
+                complaint.get(
+                    "student_name"
+                ),                                      # [2]
+
+                complaint.get(
+                    "register_number"
+                ),                                      # [3]
+
+                complaint.get(
+                    "department"
+                ),                                      # [4]
+
+                complaint.get(
+                    "category"
+                ),                                      # [5]
+
+                complaint.get(
+                    "description"
+                ),                                      # [6]
+
+                complaint.get(
+                    "priority"
+                ),                                      # [7]
+
+                complaint.get(
+                    "status"
+                ),                                      # [8]
+
+                complaint.get(
+                    "email"
+                ),                                      # [9]
+
+                format_datetime(
+                    complaint.get(
+                        "submitted_date"
+                    )
+                ),                                      # [10]
+
+                format_datetime(
+                    complaint.get(
+                        "submitted_date"
+                    )
+                ),                                      # [11]
+
+                format_datetime(
+                    complaint.get(
+                        "updated_date"
+                    )
+                )                                       # [12]
             )
 
-            complaints.append(complaint_tuple)
+            complaints.append(
+                complaint_tuple
+            )
 
-        print("ADMIN COMPLAINTS:", complaints)
+        print(
+            "ADMIN COMPLAINTS:",
+            complaints
+        )
 
         # ----------------------------------------------------
         # TOTAL
@@ -987,7 +1312,9 @@ def admin():
             .execute()
         )
 
-        inprocess = inprocess_result.count or 0
+        inprocess = (
+            inprocess_result.count or 0
+        )
 
         # ----------------------------------------------------
         # RESOLVED
@@ -1007,7 +1334,9 @@ def admin():
             .execute()
         )
 
-        resolved = resolved_result.count or 0
+        resolved = (
+            resolved_result.count or 0
+        )
 
         # ----------------------------------------------------
         # REJECTED
@@ -1027,10 +1356,12 @@ def admin():
             .execute()
         )
 
-        rejected = rejected_result.count or 0
+        rejected = (
+            rejected_result.count or 0
+        )
 
         # ----------------------------------------------------
-        # SEND TO HTML
+        # SEND DATA TO HTML
         # ----------------------------------------------------
 
         return render_template(
@@ -1045,51 +1376,65 @@ def admin():
 
     except Exception as err:
 
-        print("ADMIN DASHBOARD ERROR:", repr(err))
+        print(
+            "ADMIN DASHBOARD ERROR:",
+            repr(err)
+        )
 
-        return "Database error while loading admin dashboard ❌"
+        return (
+            "Database error while loading "
+            "admin dashboard ❌"
+        )
 
 
 # ============================================================
 # COMMON STATUS UPDATE FUNCTION
 # ============================================================
 
-def update_complaint_status(id, new_status):
+def update_complaint_status(
+    id,
+    new_status
+):
 
-    if not session.get('admin_logged_in'):
-        return redirect('/admin-login')
+    # --------------------------------------------------------
+    # ADMIN LOGIN CHECK
+    # --------------------------------------------------------
+
+    if not session.get(
+        'admin_logged_in'
+    ):
+        return redirect(
+            '/admin-login'
+        )
 
     try:
 
         # ----------------------------------------------------
-        # UPDATE STATUS
+        # ALLOWED STATUSES
         # ----------------------------------------------------
 
-        result = (
-            supabase
-            .table("complaints")
-            .update({
-                "status": new_status
-            })
-            .eq(
-                "id",
-                id
-            )
-            .execute()
-        )
+        allowed_statuses = {
+            "Pending",
+            "In Process",
+            "Resolved",
+            "Rejected"
+        }
 
-        if not result.data:
-            return "Complaint status update failed ❌"
+        if new_status not in allowed_statuses:
+
+            return (
+                "Invalid complaint status ❌"
+            ), 400
 
         # ----------------------------------------------------
-        # GET EMAIL + COMPLAINT ID
+        # GET CURRENT COMPLAINT
         # ----------------------------------------------------
 
-        data_result = (
+        current_result = (
             supabase
             .table("complaints")
             .select(
-                "email, complaint_id"
+                "id, complaint_id, status, email"
             )
             .eq(
                 "id",
@@ -1099,27 +1444,209 @@ def update_complaint_status(id, new_status):
             .execute()
         )
 
-        if data_result.data:
+        if not current_result.data:
 
-            data = data_result.data[0]
+            return (
+                "Complaint not found ❌"
+            ), 404
 
-            send_status_email(
-                data.get("email"),
-                data.get("complaint_id"),
-                new_status
+        current_complaint = (
+            current_result.data[0]
+        )
+
+        current_status = (
+            current_complaint.get(
+                "status"
+            )
+        )
+
+        # ----------------------------------------------------
+        # VALID STATUS TRANSITIONS
+        #
+        # Pending:
+        #     In Process
+        #     Rejected
+        #
+        # In Process:
+        #     Resolved
+        #     Rejected
+        #
+        # Resolved:
+        #     No changes
+        #
+        # Rejected:
+        #     No changes
+        # ----------------------------------------------------
+
+        allowed_transitions = {
+
+            "Pending": {
+                "In Process",
+                "Rejected"
+            },
+
+            "In Process": {
+                "Resolved",
+                "Rejected"
+            },
+
+            "Resolved": set(),
+
+            "Rejected": set()
+        }
+
+        if new_status not in allowed_transitions.get(
+            current_status,
+            set()
+        ):
+
+            return (
+                f"Cannot change complaint status "
+                f"from '{current_status}' "
+                f"to '{new_status}' ❌"
+            ), 400
+
+        # ----------------------------------------------------
+        # CURRENT UTC TIME
+        # ----------------------------------------------------
+
+        updated_time = (
+            datetime.now(
+                timezone.utc
+            ).isoformat()
+        )
+
+        # ----------------------------------------------------
+        # UPDATE STATUS
+        # ----------------------------------------------------
+
+        result = (
+            supabase
+            .table("complaints")
+            .update({
+                "status": new_status,
+                "updated_date": updated_time
+            })
+            .eq(
+                "id",
+                id
+            )
+            .execute()
+        )
+
+        if not result.data:
+
+            return (
+                "Complaint status update failed ❌"
             )
 
-        return redirect('/admin')
+        # ----------------------------------------------------
+        # SEND STATUS EMAIL
+        # ----------------------------------------------------
+
+        send_status_email(
+            current_complaint.get(
+                "email"
+            ),
+            current_complaint.get(
+                "complaint_id"
+            ),
+            new_status
+        )
+
+        print(
+            "STATUS UPDATED:",
+            current_complaint.get(
+                "complaint_id"
+            ),
+            current_status,
+            "->",
+            new_status
+        )
+
+        return redirect(
+            '/admin'
+        )
 
     except Exception as err:
 
-        print("STATUS UPDATE ERROR:", repr(err))
+        print(
+            "STATUS UPDATE ERROR:",
+            repr(err)
+        )
 
-        return "Database error while updating status ❌"
+        return (
+            "Database error while "
+            "updating status ❌"
+        )
 
 
 # ============================================================
-# STATUS UPDATE ROUTES
+# NEW DROPDOWN STATUS UPDATE ROUTE
+# ============================================================
+
+@app.route(
+    '/update-status/<int:id>',
+    methods=['POST']
+)
+def update_status(id):
+
+    # --------------------------------------------------------
+    # ADMIN LOGIN CHECK
+    # --------------------------------------------------------
+
+    if not session.get(
+        'admin_logged_in'
+    ):
+        return redirect(
+            '/admin-login'
+        )
+
+    # --------------------------------------------------------
+    # GET SELECTED STATUS
+    # --------------------------------------------------------
+
+    new_status = request.form.get(
+        'status'
+    )
+
+    if not new_status:
+
+        return (
+            "Please select a status ❌"
+        ), 400
+
+    # --------------------------------------------------------
+    # ALLOWED STATUS VALUES
+    # --------------------------------------------------------
+
+    allowed_statuses = {
+        "In Process",
+        "Resolved",
+        "Rejected"
+    }
+
+    if new_status not in allowed_statuses:
+
+        return (
+            "Invalid status selected ❌"
+        ), 400
+
+    # --------------------------------------------------------
+    # UPDATE COMPLAINT
+    # --------------------------------------------------------
+
+    return update_complaint_status(
+        id,
+        new_status
+    )
+
+
+# ============================================================
+# OLD STATUS UPDATE ROUTES
+#
+# These are kept so any existing links/bookmarks
+# continue to work.
 # ============================================================
 
 @app.route('/pending/<int:id>')
