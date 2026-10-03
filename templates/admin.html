@@ -1,7 +1,9 @@
+
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
+
     <meta charset="UTF-8">
 
     <meta name="viewport"
@@ -13,9 +15,14 @@
 
     <link rel="stylesheet"
           href="{{ url_for('static', filename='astyle.css') }}">
+
 </head>
 
 <body>
+
+    <!-- ========================= -->
+    <!-- SIDEBAR -->
+    <!-- ========================= -->
 
     <div class="sidebar">
 
@@ -24,6 +31,7 @@
         </h2>
 
         <ul>
+
             <li>
                 <a href="/admin">
                     Dashboard
@@ -41,11 +49,22 @@
                     Logout
                 </a>
             </li>
+
         </ul>
 
     </div>
 
+
+    <!-- ========================= -->
+    <!-- MAIN CONTENT -->
+    <!-- ========================= -->
+
     <div class="main-content">
+
+
+        <!-- ========================= -->
+        <!-- TOPBAR -->
+        <!-- ========================= -->
 
         <div class="topbar">
 
@@ -54,41 +73,94 @@
             </h1>
 
             <div class="admin-profile">
+
                 <span>
                     Welcome, Admin
                 </span>
+
             </div>
 
         </div>
+
+
+        <!-- ========================= -->
+        <!-- DASHBOARD CARDS -->
+        <!-- ========================= -->
 
         <div class="cards">
 
-            <div class="card">
-                <h2>Total Complaints</h2>
-                <p>{{ total }}</p>
-            </div>
 
             <div class="card">
-                <h2>Pending</h2>
-                <p>{{ pending }}</p>
+
+                <h2>
+                    Total Complaints
+                </h2>
+
+                <p>
+                    {{ total }}
+                </p>
+
             </div>
 
-            <div class="card">
-                <h2>In Process</h2>
-                <p>{{ inprocess }}</p>
-            </div>
 
             <div class="card">
-                <h2>Resolved</h2>
-                <p>{{ resolved }}</p>
+
+                <h2>
+                    Pending
+                </h2>
+
+                <p>
+                    {{ pending }}
+                </p>
+
             </div>
 
+
             <div class="card">
-                <h2>Rejected</h2>
-                <p>{{ rejected }}</p>
+
+                <h2>
+                    In Process
+                </h2>
+
+                <p>
+                    {{ inprocess }}
+                </p>
+
             </div>
+
+
+            <div class="card">
+
+                <h2>
+                    Resolved
+                </h2>
+
+                <p>
+                    {{ resolved }}
+                </p>
+
+            </div>
+
+
+            <div class="card">
+
+                <h2>
+                    Rejected
+                </h2>
+
+                <p>
+                    {{ rejected }}
+                </p>
+
+            </div>
+
 
         </div>
+
+
+        <!-- ========================= -->
+        <!-- RECENT COMPLAINTS -->
+        <!-- ========================= -->
 
         <div class="table-section">
 
@@ -96,112 +168,269 @@
                 Recent Complaints
             </h2>
 
+
             <table>
 
                 <thead>
+
                     <tr>
-                        <th>Complaint ID</th>
-                        <th>Student Name</th>
-                        <th>Department</th>
-                        <th>Issue</th>
-                        <th>Status</th>
-                        <th>Submitted Date</th>
-                        <th>Updated Date</th>
-                        <th>Action</th>
+
+                        <th>
+                            Complaint ID
+                        </th>
+
+                        <th>
+                            Student Name
+                        </th>
+
+                        <th>
+                            Department
+                        </th>
+
+                        <th>
+                            Issue
+                        </th>
+
+                        <th>
+                            Status
+                        </th>
+
+                        <th>
+                            Submitted Date
+                        </th>
+
+                        <th>
+                            Updated Date
+                        </th>
+
+                        <th>
+                            Action
+                        </th>
+
                     </tr>
+
                 </thead>
+
 
                 <tbody>
 
+
                     {% for complaint in complaints %}
 
+
                     <tr>
-                        <td>{{ complaint[1] }}</td>
-                        <td>{{ complaint[2] }}</td>
-                        <td>{{ complaint[4] }}</td>
-                        <td>{{ complaint[5] }}</td>
+
+
+                        <!-- Complaint ID -->
+
+                        <td>
+                            {{ complaint[1] }}
+                        </td>
+
+
+                        <!-- Student Name -->
+
+                        <td>
+                            {{ complaint[2] }}
+                        </td>
+
+
+                        <!-- Department -->
+
+                        <td>
+                            {{ complaint[4] }}
+                        </td>
+
+
+                        <!-- Issue -->
+
+                        <td>
+                            {{ complaint[5] }}
+                        </td>
+
+
+                        <!-- Status -->
 
                         {% if complaint[8] == 'Resolved' %}
 
-                            <td class="resolved">
-                                {{ complaint[8] }}
+                            <td>
+
+                                <span class="resolved">
+                                    {{ complaint[8] }}
+                                </span>
+
                             </td>
 
                         {% elif complaint[8] == 'In Process' %}
 
-                            <td class="inprocess">
-                                {{ complaint[8] }}
+                            <td>
+
+                                <span class="inprocess">
+                                    {{ complaint[8] }}
+                                </span>
+
                             </td>
 
                         {% elif complaint[8] == 'Rejected' %}
 
-                            <td class="rejected">
-                                {{ complaint[8] }}
+                            <td>
+
+                                <span class="rejected">
+                                    {{ complaint[8] }}
+                                </span>
+
                             </td>
 
                         {% else %}
 
-                            <td class="pending">
-                                {{ complaint[8] }}
+                            <td>
+
+                                <span class="pending">
+                                    {{ complaint[8] }}
+                                </span>
+
                             </td>
 
                         {% endif %}
 
-                        <!-- Because your table has:
-                             complaint[11] = submitted_date
-                             complaint[12] = updated_date -->
-                        <td>{{ complaint[11] }}</td>
-                        <td>{{ complaint[12] }}</td>
+
+                        <!-- Submitted Date -->
 
                         <td>
+                            {{ complaint[11] }}
+                        </td>
+
+
+                        <!-- Updated Date -->
+
+                        <td>
+                            {{ complaint[12] }}
+                        </td>
+
+
+                        <!-- ========================= -->
+                        <!-- ACTION -->
+                        <!-- ========================= -->
+
+                        <td class="action-cell">
+
 
                             {% if complaint[8] == 'Resolved' %}
 
-                                <button class="view-btn">
+
+                                <span class="action-completed">
                                     Completed
-                                </button>
+                                </span>
+
 
                             {% elif complaint[8] == 'Rejected' %}
 
-                                <button class="reject-btn">
+
+                                <span class="action-rejected">
                                     Rejected
-                                </button>
+                                </span>
 
-                            {% elif complaint[8] == 'In Process' %}
-
-                                <a href="/resolve/{{ complaint[0] }}">
-                                    <button class="resolve-btn">
-                                        Resolve
-                                    </button>
-                                </a>
-
-                                <a href="/reject/{{ complaint[0] }}">
-                                    <button class="reject-btn">
-                                        Reject
-                                    </button>
-                                </a>
 
                             {% else %}
 
-                                <a href="/inprocess/{{ complaint[0] }}">
-                                    <button class="process-btn">
-                                        In Process
-                                    </button>
-                                </a>
 
-                                <a href="/reject/{{ complaint[0] }}">
-                                    <button class="reject-btn">
-                                        Reject
+                                <form class="status-form"
+                                      method="POST"
+                                      action="/update-status/{{ complaint[0] }}"
+                                      onsubmit="return verifyStatusUpdate(this)">
+
+
+                                    <!-- STATUS DROPDOWN -->
+
+                                    <select name="status"
+                                            class="status-select"
+                                            required>
+
+                                        <option value=""
+                                                selected
+                                                disabled>
+
+                                            Select Action
+
+                                        </option>
+
+
+                                        {% if complaint[8] == 'Pending' %}
+
+
+                                            <option value="In Process">
+
+                                                In Process
+
+                                            </option>
+
+
+                                            <option value="Rejected">
+
+                                                Reject
+
+                                            </option>
+
+
+                                        {% elif complaint[8] == 'In Process' %}
+
+
+                                            <option value="Resolved">
+
+                                                Resolve
+
+                                            </option>
+
+
+                                            <option value="Rejected">
+
+                                                Reject
+
+                                            </option>
+
+
+                                        {% endif %}
+
+
+                                    </select>
+
+
+                                    <!-- FIRST CONFIRMATION -->
+
+                                    <button type="button"
+                                            class="confirm-btn"
+                                            onclick="confirmAction(this)">
+
+                                        Confirm
+
                                     </button>
-                                </a>
+
+
+                                    <!-- Hidden submit -->
+
+                                    <button type="submit"
+                                            class="final-submit"
+                                            style="display:none;">
+
+                                        Submit
+
+                                    </button>
+
+
+                                </form>
+
 
                             {% endif %}
 
+
                         </td>
+
 
                     </tr>
 
+
                     {% endfor %}
+
 
                 </tbody>
 
@@ -211,6 +440,257 @@
 
     </div>
 
+
+    <!-- ========================= -->
+    <!-- SECOND VERIFICATION MODAL -->
+    <!-- ========================= -->
+
+    <div class="verification-overlay"
+         id="verificationOverlay">
+
+
+        <div class="verification-box">
+
+
+            <div class="verification-icon">
+
+                ✓
+
+            </div>
+
+
+            <h3>
+
+                Verify Status Update
+
+            </h3>
+
+
+            <p>
+
+                You are about to change the complaint status.
+                Please verify the action before submitting.
+
+            </p>
+
+
+            <div class="verification-status"
+                 id="verificationStatus">
+
+            </div>
+
+
+            <div class="verification-buttons">
+
+
+                <button type="button"
+                        class="cancel-verification"
+                        onclick="cancelVerification()">
+
+                    Cancel
+
+                </button>
+
+
+                <button type="button"
+                        class="verify-submit"
+                        onclick="submitVerifiedAction()">
+
+                    Verify &amp; Submit
+
+                </button>
+
+
+            </div>
+
+
+        </div>
+
+
+    </div>
+
+
+    <!-- ========================= -->
+    <!-- JAVASCRIPT -->
+    <!-- ========================= -->
+
+    <script>
+
+        let selectedForm = null;
+
+
+        /*
+         * FIRST CONFIRMATION
+         */
+
+        function confirmAction(button) {
+
+            const form =
+                button.closest(".status-form");
+
+            const select =
+                form.querySelector(".status-select");
+
+
+            if (!select.value) {
+
+                alert("Please select an action first.");
+
+                select.focus();
+
+                return;
+            }
+
+
+            selectedForm = form;
+
+
+            const selectedStatus =
+                select.value;
+
+
+            document.getElementById(
+                "verificationStatus"
+            ).textContent =
+                "New Status: " + selectedStatus;
+
+
+            document
+                .getElementById("verificationOverlay")
+                .classList.add("active");
+
+        }
+
+
+        /*
+         * CANCEL SECOND VERIFICATION
+         */
+
+        function cancelVerification() {
+
+            selectedForm = null;
+
+
+            document
+                .getElementById("verificationOverlay")
+                .classList.remove("active");
+
+        }
+
+
+        /*
+         * SECOND VERIFICATION
+         */
+
+        function submitVerifiedAction() {
+
+            if (!selectedForm) {
+
+                return;
+
+            }
+
+
+            const select =
+                selectedForm.querySelector(
+                    ".status-select"
+                );
+
+
+            const finalStatus =
+                select.value;
+
+
+            if (!finalStatus) {
+
+                cancelVerification();
+
+                alert("No status selected.");
+
+                return;
+
+            }
+
+
+            /*
+             * Disable verification button
+             * to prevent duplicate submission.
+             */
+
+            const verifyButton =
+                document.querySelector(
+                    ".verify-submit"
+                );
+
+
+            verifyButton.disabled = true;
+
+            verifyButton.textContent =
+                "Submitting...";
+
+
+            /*
+             * Submit ONLY after the
+             * second verification.
+             */
+
+            selectedForm.submit();
+
+        }
+
+
+        /*
+         * PREVENT NORMAL FORM SUBMISSION
+         */
+
+        function verifyStatusUpdate(form) {
+
+            return false;
+
+        }
+
+
+        /*
+         * CLICK OUTSIDE MODAL
+         */
+
+        document
+            .getElementById("verificationOverlay")
+            .addEventListener(
+                "click",
+                function(event) {
+
+                    if (event.target === this) {
+
+                        cancelVerification();
+
+                    }
+
+                }
+            );
+
+
+        /*
+         * ESCAPE KEY
+         */
+
+        document.addEventListener(
+            "keydown",
+            function(event) {
+
+                if (event.key === "Escape") {
+
+                    cancelVerification();
+
+                }
+
+            }
+        );
+
+    </script>
+
+
 </body>
 
 </html>
+
