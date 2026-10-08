@@ -168,6 +168,62 @@
                 Recent Complaints
             </h2>
 
+            <form class="complaint-filters" method="GET" action="/admin">
+                <div class="filter-field">
+                    <label for="category-filter">Category</label>
+                    <select id="category-filter" name="category">
+                        <option value="">All categories</option>
+                        {% for category in categories %}
+                            <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>
+                                {{ category }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="filter-field">
+                    <label for="department-filter">Department</label>
+                    <select id="department-filter" name="department">
+                        <option value="">All departments</option>
+                        {% for department in departments %}
+                            <option value="{{ department }}" {% if selected_department == department %}selected{% endif %}>
+                                {{ department }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="filter-field">
+                    <label for="status-filter">Status</label>
+                    <select id="status-filter" name="status">
+                        <option value="">All statuses</option>
+                        {% for status in ['Pending', 'In Process', 'Resolved', 'Rejected'] %}
+                            <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>
+                                {{ status }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="filter-field">
+                    <label for="date-from-filter">Submitted from</label>
+                    <input id="date-from-filter" type="date" name="date_from" value="{{ date_from }}">
+                </div>
+
+                <div class="filter-field">
+                    <label for="date-to-filter">Submitted to</label>
+                    <input id="date-to-filter" type="date" name="date_to" value="{{ date_to }}">
+                </div>
+
+                <div class="filter-actions">
+                    <button class="filter-button" type="submit">Apply Filters</button>
+                    <a class="clear-filters" href="/admin">Clear</a>
+                </div>
+
+                <p class="filter-count">
+                    Showing <strong>{{ filtered_count }}</strong> of <strong>{{ total }}</strong> complaints
+                </p>
+            </form>
 
             <table>
 
@@ -428,6 +484,14 @@
 
                     </tr>
 
+
+                    {% else %}
+
+                    <tr>
+                        <td class="no-complaints" colspan="8">
+                            No complaints match the selected filters.
+                        </td>
+                    </tr>
 
                     {% endfor %}
 
