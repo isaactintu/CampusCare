@@ -1,12 +1,13 @@
-import os
-from functools import wraps
 
-import mysql.connector
-from dotenv import load_dotenv
-from flask import Flask, render_template, request, redirect, session, url_for
+from flask import Flask, render_template, request, redirect, session
+from supabase import create_client, Client
 from flask_mail import Mail, Message
-from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
+from dotenv import load_dotenv
+
+import os
+
+from datetime import datetime, timezone, timedelta
 
 
 # ============================================================
@@ -22,26 +23,27 @@ load_dotenv()
 
 app = Flask(__name__)
 
-app.config["SECRET_KEY"] = os.getenv(
-    "SECRET_KEY",
-    "change-this-secret-key"
-)
+app.secret_key = os.getenv("SECRET_KEY")
 
-app.config["SESSION_COOKIE_HTTPONLY"] = True
-app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+if not app.secret_key:
+    raise RuntimeError("SECRET_KEY is not configured.")
 
-# Render uses HTTPS
-app.config["SESSION_COOKIE_SECURE"] = (
-    os.getenv("SESSION_COOKIE_SECURE", "true").lower() == "true"
-)
 
-# Needed behind Render reverse proxy
-app.wsgi_app = ProxyFix(
-    app.wsgi_app,
-    x_for=1,
-    x_proto=1,
-    x_host=1,
-    x_port=1
+# ============================================================
+# SUPABASE CONFIGURATION
+# ============================================================
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError(
+        "SUPABASE_URL and SUPABASE_KEY must be configured."
+    )
+
+supabase: Client = create_client(
+    SUPABASE_URL,
+    SUPABASE_KEY
 )
 
 
@@ -49,221 +51,14 @@ app.wsgi_app = ProxyFix(
 # EMAIL CONFIGURATION
 # ============================================================
 
-app.config["MAIL_SERVER"] = os.getenv(
-    "MAIL_SERVER",
-    "smtp.gmail.com"
-)
-
-app.config["MAIL_PORT"] = int(
-    os.getenv("MAIL_PORT", "587")
-)
-
-app.config["MAIL_USERNAME"] = os.getenv(
-    "MAIL_USERNAME",
-    ""
-)
-
-app.config["MAIL_PASSWORD"] = os.getenv(
-    "MAIL_PASSWORD",
-    ""
-)
-
-app.config["MAIL_USE_TLS"] = (
-    os.getenv("MAIL_USE_TLS", "true").lower() == "true"
-)
-
-app.config["MAIL_USE_SSL"] = (
-    os.getenv("MAIL_USE_SSL", "false").lower() == "true"
-)
-
-app.config["MAIL_DEFAULT_SENDER"] = os.getenv(
-    "MAIL_DEFAULT_SENDER",
-    app.config["MAIL_USERNAME"]
-)
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME")
+app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD")
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
 
 mail = Mail(app)
-
-
-# ============================================================
-# DATABASE CONNECTION
-# ============================================================
-
-def get_db_connection():
-    """
-    Create a new MySQL connection.
-    Works with Render environment variables.
-    """
-
-    host = os.getenv("DB_HOST")
-    port = os.getenv("DB_PORT", "3306")
-    user = os.getenv("DB_USER")
-    password = os.getenv("DB_PASSWORD")
-    database = os.getenv("DB_NAME")
-
-    if not host:
-        raise RuntimeError("DB_HOST is missing")
-
-    if not user:
-        raise RuntimeError("DB_USER is missing")
-
-    if not database:
-        raise RuntimeError("DB_NAME is missing")
-
-    return mysql.connector.connect(
-        host=host,
-        port=int(port),
-        user=user,
-        password=password or "",
-        database=database,
-        connection_timeout=15,
-        autocommit=False
-    )
-
-
-# ============================================================
-# DATABASE CLOSE HELPER
-# ============================================================
-
-def close_db(cursor=None, db=None):
-
-    try:
-        if cursor is not None:
-            cursor.close()
-    except Exception:
-        pass
-
-    try:
-        if db is not None and db.is_connected():
-            db.close()
-    except Exception:
-        pass
-
-
-# ============================================================
-# GET TABLE COLUMNS
-# ============================================================
-
-def get_table_columns(table_name):
-
-    db = None
-    cursor = None
-
-    try:
-        db = get_db_connection()
-        cursor = db.cursor()
-
-        cursor.execute(f"SHOW COLUMNS FROM `{table_name}`")
-
-        rows = cursor.fetchall()
-
-        return {
-            row[0]
-            for row in rows
-        }
-
-    except Exception:
-        app.logger.exception(
-            "Could not read columns from table: %s",
-            table_name
-        )
-        return set()
-
-    finally:
-        close_db(cursor, db)
-
-
-# ============================================================
-# ADMIN LOGIN PROTECTION
-# ============================================================
-
-def admin_required(view):
-
-    @wraps(view)
-    def wrapped(*args, **kwargs):
-
-        if not session.get("admin_logged_in"):
-            return redirect(url_for("admin_login"))
-
-        return view(*args, **kwargs)
-
-    return wrapped
-
-
-# ============================================================
-# STUDENT LOGIN PROTECTION
-# ============================================================
-
-def student_required(view):
-
-    @wraps(view)
-    def wrapped(*args, **kwargs):
-
-        # We only require a valid student identity.
-        # Email is retrieved separately when needed.
-        if not session.get("student_id") or not session.get("roll_no"):
-            return redirect(url_for("complaint"))
-
-        return view(*args, **kwargs)
-
-    return wrapped
-
-
-# ============================================================
-# GET CURRENT STUDENT EMAIL
-# ============================================================
-
-def get_student_email():
-
-    # First try session
-    email = session.get("student_email")
-
-    if email:
-        return email
-
-    student_id = session.get("student_id")
-
-    if not student_id:
-        return None
-
-    db = None
-    cursor = None
-
-    try:
-
-        db = get_db_connection()
-        cursor = db.cursor()
-
-        cursor.execute(
-            """
-            SELECT email
-            FROM students
-            WHERE id=%s
-            """,
-            (student_id,)
-        )
-
-        student = cursor.fetchone()
-
-        if student and student[0]:
-
-            email = student[0]
-
-            # Save it in session
-            session["student_email"] = email
-
-            return email
-
-    except Exception:
-
-        app.logger.exception(
-            "Could not retrieve student email"
-        )
-
-    finally:
-
-        close_db(cursor, db)
-
-    return None
 
 
 # ============================================================
@@ -272,28 +67,13 @@ def get_student_email():
 
 def send_status_email(student_email, complaint_id, status):
 
-    # Email is optional.
-    if not student_email:
-        app.logger.warning(
-            "No student email available. Skipping email."
-        )
-        return
-
-    if not app.config["MAIL_USERNAME"]:
-        app.logger.warning(
-            "MAIL_USERNAME is not configured. Skipping email."
-        )
-        return
-
-    if not app.config["MAIL_PASSWORD"]:
-        app.logger.warning(
-            "MAIL_PASSWORD is not configured. Skipping email."
-        )
-        return
-
     try:
 
-        subject = "CampusCare - Complaint Status Updated"
+        if not student_email:
+            print("No student email available.")
+            return
+
+        subject = "Complaint Status Updated"
 
         body = f"""
 Dear Student,
@@ -307,70 +87,121 @@ Thank you,
 CampusCare Admin
 """
 
-        message = Message(
-            subject=subject,
-            sender=app.config["MAIL_DEFAULT_SENDER"],
+        msg = Message(
+            subject,
+            sender=app.config['MAIL_USERNAME'],
             recipients=[student_email]
         )
 
-        message.body = body
+        msg.body = body
 
-        mail.send(message)
+        mail.send(msg)
 
-        app.logger.info(
-            "Status email sent successfully for %s",
-            complaint_id
+        print(
+            f"Status email sent to {student_email} "
+            f"for {complaint_id}: {status}"
         )
 
-    except Exception:
+    except Exception as e:
 
-        # IMPORTANT:
-        # Email failure should NEVER break complaint submission.
-        app.logger.exception(
-            "Email sending failed for complaint %s",
-            complaint_id
-        )
+        print("Email sending failed:", e)
 
 
 # ============================================================
-# HOME
+# DATE/TIME FORMAT FUNCTION
 # ============================================================
 
-@app.route("/")
+def format_datetime(value):
+
+    if not value:
+        return ""
+
+    try:
+
+        # ----------------------------------------------------
+        # Supabase normally returns ISO timestamps such as:
+        #
+        # 2026-10-03T07:30:00+00:00
+        #
+        # or:
+        #
+        # 2026-10-03T07:30:00Z
+        # ----------------------------------------------------
+
+        value_string = str(value)
+
+        if value_string.endswith("Z"):
+            value_string = value_string[:-1] + "+00:00"
+
+        dt = datetime.fromisoformat(value_string)
+
+        # ----------------------------------------------------
+        # Convert UTC to Indian Standard Time
+        # ----------------------------------------------------
+
+        ist = timezone(
+            timedelta(
+                hours=5,
+                minutes=30
+            )
+        )
+
+        if dt.tzinfo is None:
+
+            dt = dt.replace(
+                tzinfo=timezone.utc
+            )
+
+        dt = dt.astimezone(ist)
+
+        return dt.strftime(
+            "%d-%m-%Y %H:%M:%S"
+        )
+
+    except Exception as e:
+
+        print(
+            "Date formatting error:",
+            e
+        )
+
+        return str(value)
+
+
+# ============================================================
+# HOME PAGE
+# ============================================================
+
+@app.route('/')
 def home():
 
-    return render_template("home.html")
+    return render_template(
+        'home.html'
+    )
 
 
 # ============================================================
-# LOGIN / SIGNUP PAGE
+# LOGIN SIGNUP PAGE
 # ============================================================
 
-@app.route("/complaint")
+@app.route('/complaint')
 def complaint():
 
-    return render_template("complaint.html")
+    return render_template(
+        'complaint.html'
+    )
 
 
 # ============================================================
 # LOGIN + SIGNUP
 # ============================================================
 
-@app.route("/login-signup", methods=["POST"])
+@app.route('/login-signup', methods=['POST'])
 def login_signup():
 
-    action = request.form.get("action", "").strip()
-
-    if action not in {"signup", "login"}:
-        return "Invalid action ❌", 400
-
-    db = None
-    cursor = None
+    action = request.form.get('action')
 
     try:
-
-        db = get_db_connection()
-        cursor = db.cursor()
 
         # ====================================================
         # SIGNUP
@@ -378,148 +209,168 @@ def login_signup():
 
         if action == "signup":
 
-            roll_no = request.form.get(
-                "roll_no",
-                ""
-            ).strip()
-
-            fullname = request.form.get(
-                "fullname",
-                ""
-            ).strip()
-
-            email = request.form.get(
-                "email",
-                ""
-            ).strip().lower()
-
-            password = request.form.get(
-                "password",
-                ""
-            )
-
+            roll_no = request.form.get('roll_no')
+            fullname = request.form.get('fullname')
+            email = request.form.get('email')
+            password = request.form.get('password')
             confirm_password = request.form.get(
-                "confirm_password",
-                ""
+                'confirm_password'
             )
 
-            if not all([
-                roll_no,
-                fullname,
-                email,
-                password,
-                confirm_password
-            ]):
-
-                return "All fields are required ❌", 400
+            if (
+                not roll_no
+                or not fullname
+                or not email
+                or not password
+                or not confirm_password
+            ):
+                return "All fields are required ❌"
 
             if password != confirm_password:
-
                 return (
-                    "Password and Confirm Password do not match ❌",
-                    400
+                    "Password and Confirm Password "
+                    "do not match ❌"
                 )
 
-            cursor.execute(
-                """
-                SELECT id
-                FROM students
-                WHERE roll_no=%s OR email=%s
-                """,
-                (roll_no, email)
+            # ------------------------------------------------
+            # CHECK ROLL NUMBER
+            # ------------------------------------------------
+
+            roll_result = (
+                supabase
+                .table("students")
+                .select("id")
+                .eq("roll_no", roll_no)
+                .limit(1)
+                .execute()
             )
 
-            if cursor.fetchone():
+            if roll_result.data:
+                return "Roll Number already registered ❌"
 
-                return "Student already registered ❌", 409
+            # ------------------------------------------------
+            # CHECK EMAIL
+            # ------------------------------------------------
+
+            email_result = (
+                supabase
+                .table("students")
+                .select("id")
+                .eq("email", email)
+                .limit(1)
+                .execute()
+            )
+
+            if email_result.data:
+                return "Email already registered ❌"
+
+            # ------------------------------------------------
+            # HASH PASSWORD
+            # ------------------------------------------------
 
             hashed_password = generate_password_hash(
                 password
             )
 
-            cursor.execute(
-                """
-                INSERT INTO students
-                (
-                    roll_no,
-                    fullname,
-                    email,
-                    password_hash
-                )
-                VALUES (%s, %s, %s, %s)
-                """,
-                (
-                    roll_no,
-                    fullname,
-                    email,
-                    hashed_password
-                )
+            # ------------------------------------------------
+            # INSERT STUDENT
+            # ------------------------------------------------
+
+            result = (
+                supabase
+                .table("students")
+                .insert({
+                    "roll_no": roll_no,
+                    "fullname": fullname,
+                    "email": email,
+                    "password_hash": hashed_password
+                })
+                .execute()
             )
 
-            db.commit()
+            if not result.data:
+                return "Student registration failed ❌"
 
-            student_id = cursor.lastrowid
+            student = result.data[0]
 
-            # Create fresh session
-            session.clear()
+            # ------------------------------------------------
+            # CREATE SESSION
+            # ------------------------------------------------
 
-            session["student_id"] = student_id
-            session["roll_no"] = roll_no
-            session["student_name"] = fullname
-            session["student_email"] = email
-
-            session.permanent = False
+            session['student_id'] = student.get('id')
+            session['roll_no'] = student.get('roll_no')
+            session['student_name'] = student.get('fullname')
+            session['student_email'] = student.get('email')
 
             return redirect(
-                url_for("student_dashboard")
+                '/student-dashboard'
             )
+
 
         # ====================================================
         # LOGIN
         # ====================================================
 
-        login_value = request.form.get(
-            "login_value",
-            ""
-        ).strip()
+        elif action == "login":
 
-        password = request.form.get(
-            "password",
-            ""
-        )
-
-        if not login_value or not password:
-
-            return (
-                "Roll Number / Email and Password are required ❌",
-                400
+            login_value = request.form.get(
+                'login_value'
             )
 
-        cursor.execute(
-            """
-            SELECT
-                id,
-                roll_no,
-                fullname,
-                email,
-                password_hash
-            FROM students
-            WHERE roll_no=%s OR email=%s
-            """,
-            (
-                login_value,
-                login_value.lower()
+            password = request.form.get(
+                'password'
             )
-        )
 
-        user = cursor.fetchone()
+            if not login_value or not password:
+                return (
+                    "Roll Number / Email and "
+                    "Password are required ❌"
+                )
 
-        if user:
+            # ------------------------------------------------
+            # SEARCH BY ROLL NUMBER OR EMAIL
+            # ------------------------------------------------
+
+            result = (
+                supabase
+                .table("students")
+                .select(
+                    "id, roll_no, fullname, "
+                    "email, password_hash"
+                )
+                .or_(
+                    f"roll_no.eq.{login_value},"
+                    f"email.eq.{login_value}"
+                )
+                .limit(1)
+                .execute()
+            )
+
+            if not result.data:
+                return (
+                    "Invalid Roll Number / Email "
+                    "or Password ❌"
+                )
+
+            user = result.data[0]
+
+            stored_password = user.get(
+                "password_hash"
+            )
+
+            if not stored_password:
+                return (
+                    "Student password is not configured ❌"
+                )
+
+            # ------------------------------------------------
+            # PASSWORD CHECK
+            # ------------------------------------------------
 
             try:
 
                 password_valid = check_password_hash(
-                    user[4],
+                    stored_password,
                     password
                 )
 
@@ -529,309 +380,310 @@ def login_signup():
 
             if password_valid:
 
-                session.clear()
-
-                session["student_id"] = user[0]
-                session["roll_no"] = user[1]
-                session["student_name"] = user[2]
-                session["student_email"] = user[3]
-
-                session.permanent = False
+                session['student_id'] = user.get('id')
+                session['roll_no'] = user.get('roll_no')
+                session['student_name'] = user.get('fullname')
+                session['student_email'] = user.get('email')
 
                 return redirect(
-                    url_for("student_dashboard")
+                    '/student-dashboard'
                 )
 
-        return (
-            "Invalid Roll Number / Email or Password ❌",
-            401
+            return (
+                "Invalid Roll Number / Email "
+                "or Password ❌"
+            )
+
+
+        # ====================================================
+        # INVALID ACTION
+        # ====================================================
+
+        else:
+
+            return "Invalid action ❌"
+
+    except Exception as err:
+
+        print(
+            "LOGIN/SIGNUP ERROR:",
+            repr(err)
         )
-
-    except mysql.connector.Error:
-
-        app.logger.exception(
-            "MYSQL ERROR during login/signup"
-        )
-
-        if db:
-            try:
-                db.rollback()
-            except Exception:
-                pass
-
-        return (
-            "Database connection/query error ❌",
-            500
-        )
-
-    except Exception:
-
-        app.logger.exception(
-            "UNEXPECTED ERROR during login/signup"
-        )
-
-        if db:
-            try:
-                db.rollback()
-            except Exception:
-                pass
 
         return (
-            "Unexpected server error ❌",
-            500
+            "Database connection/query error ❌"
         )
-
-    finally:
-
-        close_db(cursor, db)
 
 
 # ============================================================
 # FORGOT PASSWORD
 # ============================================================
 
-@app.route("/forgot-password", methods=["GET", "POST"])
+@app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
 
-    if request.method == "POST":
+    if request.method == 'POST':
 
-        roll_no = request.form.get(
-            "roll_no",
-            ""
-        ).strip()
-
-        email = request.form.get(
-            "email",
-            ""
-        ).strip().lower()
-
-        new_password = request.form.get(
-            "new_password",
-            ""
-        )
-
+        roll_no = request.form.get('roll_no')
+        email = request.form.get('email')
+        new_password = request.form.get('new_password')
         confirm_password = request.form.get(
-            "confirm_password",
-            ""
+            'confirm_password'
         )
 
-        if not all([
-            roll_no,
-            email,
-            new_password,
-            confirm_password
-        ]):
-
-            return "All fields are required ❌", 400
+        if (
+            not roll_no
+            or not email
+            or not new_password
+            or not confirm_password
+        ):
+            return "All fields are required ❌"
 
         if new_password != confirm_password:
-
             return (
-                "New Password and Confirm Password do not match ❌",
-                400
+                "New Password and Confirm Password "
+                "do not match ❌"
             )
-
-        db = None
-        cursor = None
 
         try:
 
-            db = get_db_connection()
-            cursor = db.cursor()
+            # ------------------------------------------------
+            # FIND STUDENT
+            # ------------------------------------------------
 
-            cursor.execute(
-                """
-                SELECT id
-                FROM students
-                WHERE roll_no=%s AND email=%s
-                """,
-                (roll_no, email)
+            result = (
+                supabase
+                .table("students")
+                .select("id")
+                .eq("roll_no", roll_no)
+                .eq("email", email)
+                .limit(1)
+                .execute()
             )
 
-            student = cursor.fetchone()
-
-            if not student:
-
+            if not result.data:
                 return (
-                    "Invalid Roll Number or Registered Email ❌",
-                    404
+                    "Invalid Roll Number or "
+                    "Registered Email ❌"
                 )
+
+            # ------------------------------------------------
+            # HASH NEW PASSWORD
+            # ------------------------------------------------
 
             hashed_password = generate_password_hash(
                 new_password
             )
 
-            cursor.execute(
-                """
-                UPDATE students
-                SET password_hash=%s
-                WHERE roll_no=%s AND email=%s
-                """,
-                (
-                    hashed_password,
-                    roll_no,
-                    email
-                )
+            # ------------------------------------------------
+            # UPDATE
+            # ------------------------------------------------
+
+            update_result = (
+                supabase
+                .table("students")
+                .update({
+                    "password_hash": hashed_password
+                })
+                .eq("roll_no", roll_no)
+                .eq("email", email)
+                .execute()
             )
 
-            db.commit()
+            if not update_result.data:
+                return "Password reset failed ❌"
 
             return render_template(
                 "reset_sucessful.html"
             )
 
-        except mysql.connector.Error:
+        except Exception as err:
 
-            app.logger.exception(
-                "Database error while resetting password"
+            print(
+                "FORGOT PASSWORD ERROR:",
+                repr(err)
             )
-
-            if db:
-                db.rollback()
 
             return (
-                "Database error while resetting password ❌",
-                500
+                "Database error while "
+                "resetting password ❌"
             )
-
-        except Exception:
-
-            app.logger.exception(
-                "Unexpected error while resetting password"
-            )
-
-            if db:
-                db.rollback()
-
-            return (
-                "Unexpected server error ❌",
-                500
-            )
-
-        finally:
-
-            close_db(cursor, db)
 
     return render_template(
-        "reset_password.html"
+        'reset_password.html'
     )
 
 
 # ============================================================
-# STUDENT DASHBOARD
+# STUDENT DASHBOARD / MY COMPLAINTS
 # ============================================================
 
-@app.route("/student-dashboard")
-@student_required
+@app.route('/student-dashboard')
 def student_dashboard():
 
-    roll_no = session.get("roll_no")
+    if 'student_email' not in session:
+        return redirect('/complaint')
 
-    db = None
-    cursor = None
+    roll_no = session.get('roll_no')
+
+    if not roll_no:
+
+        session.clear()
+
+        return redirect('/complaint')
 
     try:
 
-        db = get_db_connection()
-        cursor = db.cursor()
+        # ----------------------------------------------------
+        # GET STUDENT COMPLAINTS
+        # ----------------------------------------------------
 
-        columns = get_table_columns("complaints")
-
-        # Handle either submitted_date or created_at
-        if "submitted_date" in columns:
-
-            date_columns = """
-                submitted_date,
-                updated_date
-            """
-
-        elif "created_at" in columns:
-
-            date_columns = """
-                created_at AS submitted_date,
-                created_at AS updated_date
-            """
-
-        else:
-
-            date_columns = """
-                NULL AS submitted_date,
-                NULL AS updated_date
-            """
-
-        cursor.execute(
-            f"""
-            SELECT
-                complaint_id,
-                category,
-                description,
-                priority,
-                status,
-                department,
-                {date_columns}
-            FROM complaints
-            WHERE register_number=%s
-            ORDER BY
-                COALESCE(
-                    submitted_date,
-                    created_at
-                ) DESC
-            """,
-            (roll_no,)
+        result = (
+            supabase
+            .table("complaints")
+            .select(
+                "complaint_id, "
+                "category, "
+                "description, "
+                "priority, "
+                "status, "
+                "department, "
+                "submitted_date, "
+                "updated_date"
+            )
+            .eq(
+                "register_number",
+                roll_no
+            )
+            .order(
+                "submitted_date",
+                desc=True
+            )
+            .execute()
         )
 
-        complaints = cursor.fetchall()
+        complaints_data = result.data or []
+
+        complaints = []
+
+        # ----------------------------------------------------
+        # CONVERT TO TUPLES FOR HTML
+        # ----------------------------------------------------
+
+        for complaint in complaints_data:
+
+            complaint_tuple = (
+
+                complaint.get(
+                    "complaint_id"
+                ),
+
+                complaint.get(
+                    "category"
+                ),
+
+                complaint.get(
+                    "description"
+                ),
+
+                complaint.get(
+                    "priority"
+                ),
+
+                complaint.get(
+                    "status"
+                ),
+
+                complaint.get(
+                    "department"
+                ),
+
+                format_datetime(
+                    complaint.get(
+                        "submitted_date"
+                    )
+                ),
+
+                format_datetime(
+                    complaint.get(
+                        "updated_date"
+                    )
+                )
+            )
+
+            complaints.append(
+                complaint_tuple
+            )
+
+        print(
+            "Student Roll Number:",
+            roll_no
+        )
+
+        print(
+            "Student Complaints:",
+            complaints
+        )
 
         return render_template(
-            "student_dashboard.html",
+            'student_dashboard.html',
             complaints=complaints,
-            student_name=session.get("student_name"),
-            roll_no=roll_no
+            student_name=session.get(
+                'student_name'
+            ),
+            roll_no=session.get(
+                'roll_no'
+            )
         )
 
-    except Exception:
+    except Exception as err:
 
-        app.logger.exception(
-            "ERROR loading student dashboard"
+        print(
+            "STUDENT DASHBOARD ERROR:",
+            repr(err)
         )
 
         return (
-            "Database error while loading student dashboard ❌",
-            500
+            "Database error while loading "
+            "student dashboard ❌"
         )
 
-    finally:
-
-        close_db(cursor, db)
-
 
 # ============================================================
-# LOGOUT
+# STUDENT LOGOUT
 # ============================================================
 
-@app.route("/logout")
+@app.route('/logout')
 def logout():
 
     session.clear()
 
     return redirect(
-        url_for("complaint")
+        '/complaint'
     )
 
 
 # ============================================================
-# PROBLEM / COMPLAINT FORM
+# PROBLEM PAGE
 # ============================================================
 
-@app.route("/problem")
-@student_required
+@app.route('/problem')
 def problem():
 
+    if 'student_email' not in session:
+        return redirect('/complaint')
+
     return render_template(
-        "problem.html",
-        student_name=session.get("student_name"),
-        roll_no=session.get("roll_no"),
-        student_email=get_student_email()
+        'problem.html',
+        student_name=session.get(
+            'student_name'
+        ),
+        roll_no=session.get(
+            'roll_no'
+        ),
+        student_email=session.get(
+            'student_email'
+        )
     )
 
 
@@ -839,279 +691,116 @@ def problem():
 # SUBMIT COMPLAINT
 # ============================================================
 
-@app.route("/submit-complaint", methods=["POST"])
-@student_required
+@app.route('/submit-complaint', methods=['POST'])
 def submit_complaint():
 
-    app.logger.info(
-        "========== COMPLAINT SUBMISSION STARTED =========="
+    if 'student_email' not in session:
+        return redirect('/complaint')
+
+    student_name = session.get(
+        'student_name'
     )
 
-    # --------------------------------------------------------
-    # GET STUDENT DETAILS
-    # --------------------------------------------------------
-
-    student_id = session.get("student_id")
-    student_name = session.get("student_name")
-    register_number = session.get("roll_no")
-
-    # Get email safely
-    email = get_student_email()
-
-    app.logger.info(
-        "Student ID: %s",
-        student_id
+    register_number = session.get(
+        'roll_no'
     )
 
-    app.logger.info(
-        "Student Name: %s",
-        student_name
+    email = session.get(
+        'student_email'
     )
-
-    app.logger.info(
-        "Register Number: %s",
-        register_number
-    )
-
-    app.logger.info(
-        "Student Email available: %s",
-        bool(email)
-    )
-
-    # --------------------------------------------------------
-    # VALIDATE STUDENT SESSION
-    # --------------------------------------------------------
-
-    if not student_id or not register_number:
-
-        app.logger.error(
-            "Student session is incomplete."
-        )
-
-        return (
-            "Your login session has expired. "
-            "Please logout and login again ❌",
-            401
-        )
-
-    if not student_name:
-
-        app.logger.error(
-            "Student name missing from session."
-        )
-
-        return (
-            "Student information is missing. "
-            "Please logout and login again ❌",
-            401
-        )
-
-    # --------------------------------------------------------
-    # GET FORM DATA
-    # --------------------------------------------------------
 
     department = request.form.get(
-        "department",
-        ""
-    ).strip()
+        'department'
+    )
 
     category = request.form.get(
-        "category",
-        ""
-    ).strip()
+        'category'
+    )
 
     description = request.form.get(
-        "description",
-        ""
-    ).strip()
+        'description'
+    )
 
     priority = request.form.get(
-        "priority",
-        ""
-    ).strip()
-
-    app.logger.info(
-        "Department: %s",
-        department
+        'priority'
     )
 
-    app.logger.info(
-        "Category: %s",
-        category
-    )
-
-    app.logger.info(
-        "Priority: %s",
-        priority
-    )
-
-    # --------------------------------------------------------
-    # VALIDATE FORM
-    # --------------------------------------------------------
-
-    if not all([
-        department,
-        category,
-        description,
-        priority
-    ]):
-
-        app.logger.warning(
-            "Complaint form contains missing fields."
-        )
-
+    if (
+        not department
+        or not category
+        or not description
+        or not priority
+    ):
         return (
-            "All complaint fields are required ❌",
-            400
+            "All complaint fields "
+            "are required ❌"
         )
-
-    db = None
-    cursor = None
 
     try:
-
-        # ----------------------------------------------------
-        # CONNECT DATABASE
-        # ----------------------------------------------------
-
-        app.logger.info(
-            "Connecting to database..."
-        )
-
-        db = get_db_connection()
-
-        app.logger.info(
-            "Database connection successful."
-        )
-
-        cursor = db.cursor()
-
-        # ----------------------------------------------------
-        # CHECK COMPLAINT TABLE COLUMNS
-        # ----------------------------------------------------
-
-        cursor.execute(
-            "SHOW COLUMNS FROM complaints"
-        )
-
-        column_rows = cursor.fetchall()
-
-        complaint_columns = {
-            row[0]
-            for row in column_rows
-        }
-
-        app.logger.info(
-            "Complaint table columns: %s",
-            complaint_columns
-        )
 
         # ----------------------------------------------------
         # INSERT COMPLAINT
         # ----------------------------------------------------
 
-        insert_columns = [
-            "student_name",
-            "register_number",
-            "department",
-            "category",
-            "description",
-            "priority"
-        ]
-
-        insert_values = [
-            student_name,
-            register_number,
-            department,
-            category,
-            description,
-            priority
-        ]
-
-        # Add email only if the column exists
-        if "email" in complaint_columns:
-
-            insert_columns.append("email")
-            insert_values.append(email)
-
-        # Add status if the column exists
-        if "status" in complaint_columns:
-
-            insert_columns.append("status")
-            insert_values.append("Pending")
-
-        # First insert without complaint_id.
-        # This lets MySQL generate the numeric ID.
-        placeholders = ", ".join(
-            ["%s"] * len(insert_columns)
+        result = (
+            supabase
+            .table("complaints")
+            .insert({
+                "student_name": student_name,
+                "register_number": register_number,
+                "department": department,
+                "category": category,
+                "description": description,
+                "priority": priority,
+                "email": email,
+                "status": "Pending"
+            })
+            .execute()
         )
 
-        column_string = ", ".join(
-            f"`{column}`"
-            for column in insert_columns
-        )
+        if not result.data:
+            return (
+                "Complaint submission failed ❌"
+            )
 
-        sql = f"""
-            INSERT INTO complaints
-            ({column_string})
-            VALUES
-            ({placeholders})
-        """
-
-        app.logger.info(
-            "Executing complaint INSERT..."
-        )
-
-        cursor.execute(
-            sql,
-            tuple(insert_values)
-        )
-
-        db.commit()
+        inserted_complaint = result.data[0]
 
         # ----------------------------------------------------
         # GET AUTO GENERATED ID
         # ----------------------------------------------------
 
-        complaint_number = cursor.lastrowid
-
-        app.logger.info(
-            "Generated database ID: %s",
-            complaint_number
+        complaint_number = inserted_complaint.get(
+            "id"
         )
 
-        if not complaint_number:
-
-            raise Exception(
-                "MySQL did not return complaint ID"
+        if complaint_number is None:
+            return (
+                "Complaint ID generation failed ❌"
             )
 
         complaint_id = f"CMP{complaint_number}"
 
         # ----------------------------------------------------
-        # UPDATE COMPLAINT ID
+        # UPDATE complaint_id
         # ----------------------------------------------------
 
-        if "complaint_id" in complaint_columns:
-
-            cursor.execute(
-                """
-                UPDATE complaints
-                SET complaint_id=%s
-                WHERE id=%s
-                """,
-                (
-                    complaint_id,
-                    complaint_number
-                )
+        update_result = (
+            supabase
+            .table("complaints")
+            .update({
+                "complaint_id": complaint_id
+            })
+            .eq(
+                "id",
+                complaint_number
             )
-
-            db.commit()
-
-        app.logger.info(
-            "Complaint created successfully: %s",
-            complaint_id
+            .execute()
         )
+
+        if not update_result.data:
+            return (
+                "Complaint ID generation failed ❌"
+            )
 
         # ----------------------------------------------------
         # SEND EMAIL
@@ -1123,165 +812,142 @@ def submit_complaint():
             "Pending"
         )
 
-        app.logger.info(
-            "========== COMPLAINT SUBMISSION SUCCESS =========="
-        )
-
-        # ----------------------------------------------------
-        # SUCCESS PAGE
-        # ----------------------------------------------------
-
         return render_template(
-            "success.html",
+            'success.html',
             complaint_id=complaint_id
         )
 
-    except mysql.connector.Error as error:
+    except Exception as err:
 
-        app.logger.exception(
-            "MYSQL ERROR WHILE SUBMITTING COMPLAINT: %s",
-            error
+        print(
+            "SUBMIT COMPLAINT ERROR:",
+            repr(err)
         )
-
-        if db:
-
-            try:
-                db.rollback()
-            except Exception:
-                pass
 
         return (
-            "Complaint submission failed due to database error ❌ "
-            "Please check Render Logs.",
-            500
+            "Complaint submission failed "
+            "due to database error ❌"
         )
-
-    except Exception as error:
-
-        app.logger.exception(
-            "UNEXPECTED ERROR WHILE SUBMITTING COMPLAINT: %s",
-            error
-        )
-
-        if db:
-
-            try:
-                db.rollback()
-            except Exception:
-                pass
-
-        return (
-            "Complaint submission failed ❌ "
-            "Please check Render Logs.",
-            500
-        )
-
-    finally:
-
-        close_db(cursor, db)
 
 
 # ============================================================
 # TRACK COMPLAINT
 # ============================================================
 
-@app.route("/track", methods=["GET", "POST"])
+@app.route('/track', methods=['GET', 'POST'])
 def track():
 
     complaint = None
 
-    if request.method == "POST":
+    if request.method == 'POST':
 
         complaint_id = request.form.get(
-            "complaint_id",
-            ""
+            'complaint_id',
+            ''
         ).strip()
 
         if not complaint_id:
-
-            return render_template(
-                "track.html",
-                complaint=None
+            return (
+                "Complaint ID is required ❌"
             )
-
-        db = None
-        cursor = None
 
         try:
 
-            db = get_db_connection()
-            cursor = db.cursor()
-
-            columns = get_table_columns(
-                "complaints"
+            result = (
+                supabase
+                .table("complaints")
+                .select(
+                    "id, "
+                    "complaint_id, "
+                    "student_name, "
+                    "register_number, "
+                    "department, "
+                    "category, "
+                    "description, "
+                    "priority, "
+                    "status, "
+                    "email, "
+                    "submitted_date, "
+                    "updated_date"
+                )
+                .ilike(
+                    "complaint_id",
+                    complaint_id
+                )
+                .limit(1)
+                .execute()
             )
 
-            if "submitted_date" in columns:
+            if result.data:
 
-                submitted_date = "submitted_date"
+                data = result.data[0]
 
-            elif "created_at" in columns:
+                # ------------------------------------------
+                # FORMAT DATES
+                # ------------------------------------------
 
-                submitted_date = "created_at AS submitted_date"
+                submitted_date = format_datetime(
+                    data.get(
+                        "submitted_date"
+                    )
+                )
 
-            else:
+                updated_date = format_datetime(
+                    data.get(
+                        "updated_date"
+                    )
+                )
 
-                submitted_date = "NULL AS submitted_date"
+                # ------------------------------------------
+                # TUPLE ORDER
+                # ------------------------------------------
 
-            if "updated_date" in columns:
+                complaint = (
 
-                updated_date = "updated_date"
+                    data.get("id"),                  # [0]
 
-            else:
+                    data.get("complaint_id"),        # [1]
 
-                updated_date = "NULL AS updated_date"
+                    data.get("student_name"),        # [2]
 
-            email_column = (
-                "email"
-                if "email" in columns
-                else "NULL"
-            )
+                    data.get("register_number"),     # [3]
 
-            cursor.execute(
-                f"""
-                SELECT
-                    id,
-                    complaint_id,
-                    student_name,
-                    register_number,
-                    department,
-                    category,
-                    description,
-                    priority,
-                    status,
-                    {email_column},
-                    {submitted_date},
-                    {updated_date}
-                FROM complaints
-                WHERE complaint_id=%s
-                """,
-                (complaint_id,)
-            )
+                    data.get("department"),          # [4]
 
-            complaint = cursor.fetchone()
+                    data.get("category"),            # [5]
 
-        except Exception:
+                    data.get("description"),         # [6]
 
-            app.logger.exception(
-                "Database error while tracking complaint"
+                    data.get("priority"),            # [7]
+
+                    data.get("status"),              # [8]
+
+                    data.get("email"),               # [9]
+
+                    submitted_date,                  # [10]
+
+                    updated_date                     # [11]
+                )
+
+                print(
+                    "TRACK COMPLAINT:",
+                    complaint
+                )
+
+        except Exception as err:
+
+            print(
+                "TRACK COMPLAINT ERROR:",
+                repr(err)
             )
 
             return (
-                "Database error while tracking complaint ❌",
-                500
+                "Database error while "
+                "tracking complaint ❌"
             )
 
-        finally:
-
-            close_db(cursor, db)
-
     return render_template(
-        "track.html",
+        'track.html',
         complaint=complaint
     )
 
@@ -1290,84 +956,134 @@ def track():
 # ADMIN LOGIN
 # ============================================================
 
-@app.route("/admin-login", methods=["GET", "POST"])
+@app.route('/admin-login', methods=['GET', 'POST'])
 def admin_login():
 
-    if request.method == "POST":
+    if request.method == 'POST':
 
         username = request.form.get(
-            "username",
-            ""
-        ).strip()
+            'username'
+        )
 
         password = request.form.get(
-            "password",
-            ""
+            'password'
         )
 
         if not username or not password:
-
             return (
-                "Username and password are required ❌",
-                400
+                "Username and Password "
+                "are required ❌"
             )
-
-        db = None
-        cursor = None
 
         try:
 
-            db = get_db_connection()
-            cursor = db.cursor()
+            # ------------------------------------------------
+            # FIND ADMIN
+            # ------------------------------------------------
 
-            cursor.execute(
-                """
-                SELECT *
-                FROM admins
-                WHERE username=%s
-                AND password=%s
-                """,
-                (
-                    username,
-                    password
+            result = (
+                supabase
+                .table("admins")
+                .select(
+                    "id, username, password"
                 )
+                .eq(
+                    "username",
+                    username
+                )
+                .limit(1)
+                .execute()
             )
 
-            admin = cursor.fetchone()
+            if not result.data:
+                return (
+                    "Invalid Admin Credentials ❌"
+                )
 
-            if admin:
+            admin_data = result.data[0]
 
-                session.clear()
+            stored_password = admin_data.get(
+                "password"
+            )
 
-                session["admin_logged_in"] = True
-                session["admin_username"] = username
+            if not stored_password:
+                return (
+                    "Admin password is not "
+                    "configured ❌"
+                )
+
+            # ------------------------------------------------
+            # PASSWORD CHECK
+            # ------------------------------------------------
+
+            password_valid = False
+
+            if (
+                stored_password.startswith(
+                    "pbkdf2:"
+                )
+                or stored_password.startswith(
+                    "scrypt:"
+                )
+            ):
+
+                try:
+
+                    password_valid = (
+                        check_password_hash(
+                            stored_password,
+                            password
+                        )
+                    )
+
+                except Exception:
+
+                    password_valid = False
+
+            else:
+
+                password_valid = (
+                    stored_password == password
+                )
+
+            # ------------------------------------------------
+            # LOGIN SUCCESS
+            # ------------------------------------------------
+
+            if password_valid:
+
+                session['admin_logged_in'] = True
+
+                session['admin_id'] = (
+                    admin_data.get('id')
+                )
+
+                session['admin_username'] = (
+                    admin_data.get('username')
+                )
 
                 return redirect(
-                    url_for("admin")
+                    '/admin'
                 )
 
             return (
-                "Invalid Admin Credentials ❌",
-                401
+                "Invalid Admin Credentials ❌"
             )
 
-        except Exception:
+        except Exception as err:
 
-            app.logger.exception(
-                "Database error during admin login"
+            print(
+                "ADMIN LOGIN ERROR:",
+                repr(err)
             )
 
             return (
-                "Database error during admin login ❌",
-                500
+                "Database error during "
+                "admin login ❌"
             )
 
-        finally:
-
-            close_db(cursor, db)
-
     return render_template(
-        "adlog.html"
+        'adlog.html'
     )
 
 
@@ -1375,21 +1091,26 @@ def admin_login():
 # ADMIN LOGOUT
 # ============================================================
 
-@app.route("/admin-logout")
+@app.route('/admin-logout')
 def admin_logout():
 
     session.pop(
-        "admin_logged_in",
+        'admin_logged_in',
         None
     )
 
     session.pop(
-        "admin_username",
+        'admin_id',
+        None
+    )
+
+    session.pop(
+        'admin_username',
         None
     )
 
     return redirect(
-        url_for("admin_login")
+        '/admin-login'
     )
 
 
@@ -1397,92 +1118,254 @@ def admin_logout():
 # ADMIN DASHBOARD
 # ============================================================
 
-@app.route("/admin")
-@admin_required
+@app.route('/admin')
 def admin():
 
-    db = None
-    cursor = None
+    if not session.get(
+        'admin_logged_in'
+    ):
+        return redirect(
+            '/admin-login'
+        )
 
     try:
 
-        db = get_db_connection()
-        cursor = db.cursor()
+        # ----------------------------------------------------
+        # GET COMPLAINTS
+        # ----------------------------------------------------
 
-        columns = get_table_columns(
-            "complaints"
+        complaints_result = (
+            supabase
+            .table("complaints")
+            .select(
+                "id, "
+                "complaint_id, "
+                "student_name, "
+                "register_number, "
+                "department, "
+                "category, "
+                "description, "
+                "priority, "
+                "status, "
+                "email, "
+                "submitted_date, "
+                "updated_date"
+            )
+            .order(
+                "submitted_date",
+                desc=True
+            )
+            .execute()
         )
 
-        if "submitted_date" in columns:
-
-            order_column = "submitted_date"
-
-        elif "created_at" in columns:
-
-            order_column = "created_at"
-
-        else:
-
-            order_column = "id"
-
-        cursor.execute(
-            f"""
-            SELECT *
-            FROM complaints
-            ORDER BY `{order_column}` DESC
-            """
+        complaints_data = (
+            complaints_result.data or []
         )
 
-        complaints = cursor.fetchall()
+        complaints = []
 
-        cursor.execute(
-            "SELECT COUNT(*) FROM complaints"
+        # ----------------------------------------------------
+        # CREATE TUPLES FOR admin.html
+        #
+        # [0]  id
+        # [1]  complaint_id
+        # [2]  student_name
+        # [3]  register_number
+        # [4]  department
+        # [5]  category
+        # [6]  description
+        # [7]  priority
+        # [8]  status
+        # [9]  email
+        # [10] submitted_date
+        # [11] submitted_date
+        # [12] updated_date
+        #
+        # Your current HTML uses:
+        # complaint[11] = submitted date
+        # complaint[12] = updated date
+        # ----------------------------------------------------
+
+        for complaint in complaints_data:
+
+            complaint_tuple = (
+
+                complaint.get(
+                    "id"
+                ),                                      # [0]
+
+                complaint.get(
+                    "complaint_id"
+                ),                                      # [1]
+
+                complaint.get(
+                    "student_name"
+                ),                                      # [2]
+
+                complaint.get(
+                    "register_number"
+                ),                                      # [3]
+
+                complaint.get(
+                    "department"
+                ),                                      # [4]
+
+                complaint.get(
+                    "category"
+                ),                                      # [5]
+
+                complaint.get(
+                    "description"
+                ),                                      # [6]
+
+                complaint.get(
+                    "priority"
+                ),                                      # [7]
+
+                complaint.get(
+                    "status"
+                ),                                      # [8]
+
+                complaint.get(
+                    "email"
+                ),                                      # [9]
+
+                format_datetime(
+                    complaint.get(
+                        "submitted_date"
+                    )
+                ),                                      # [10]
+
+                format_datetime(
+                    complaint.get(
+                        "submitted_date"
+                    )
+                ),                                      # [11]
+
+                format_datetime(
+                    complaint.get(
+                        "updated_date"
+                    )
+                )                                       # [12]
+            )
+
+            complaints.append(
+                complaint_tuple
+            )
+
+        print(
+            "ADMIN COMPLAINTS:",
+            complaints
         )
 
-        total = cursor.fetchone()[0]
+        # ----------------------------------------------------
+        # TOTAL
+        # ----------------------------------------------------
 
-        cursor.execute(
-            """
-            SELECT COUNT(*)
-            FROM complaints
-            WHERE status='Pending'
-            """
+        total_result = (
+            supabase
+            .table("complaints")
+            .select(
+                "id",
+                count="exact"
+            )
+            .execute()
         )
 
-        pending = cursor.fetchone()[0]
+        total = total_result.count or 0
 
-        cursor.execute(
-            """
-            SELECT COUNT(*)
-            FROM complaints
-            WHERE status='In Process'
-            """
+        # ----------------------------------------------------
+        # PENDING
+        # ----------------------------------------------------
+
+        pending_result = (
+            supabase
+            .table("complaints")
+            .select(
+                "id",
+                count="exact"
+            )
+            .eq(
+                "status",
+                "Pending"
+            )
+            .execute()
         )
 
-        inprocess = cursor.fetchone()[0]
+        pending = pending_result.count or 0
 
-        cursor.execute(
-            """
-            SELECT COUNT(*)
-            FROM complaints
-            WHERE status='Resolved'
-            """
+        # ----------------------------------------------------
+        # IN PROCESS
+        # ----------------------------------------------------
+
+        inprocess_result = (
+            supabase
+            .table("complaints")
+            .select(
+                "id",
+                count="exact"
+            )
+            .eq(
+                "status",
+                "In Process"
+            )
+            .execute()
         )
 
-        resolved = cursor.fetchone()[0]
-
-        cursor.execute(
-            """
-            SELECT COUNT(*)
-            FROM complaints
-            WHERE status='Rejected'
-            """
+        inprocess = (
+            inprocess_result.count or 0
         )
 
-        rejected = cursor.fetchone()[0]
+        # ----------------------------------------------------
+        # RESOLVED
+        # ----------------------------------------------------
+
+        resolved_result = (
+            supabase
+            .table("complaints")
+            .select(
+                "id",
+                count="exact"
+            )
+            .eq(
+                "status",
+                "Resolved"
+            )
+            .execute()
+        )
+
+        resolved = (
+            resolved_result.count or 0
+        )
+
+        # ----------------------------------------------------
+        # REJECTED
+        # ----------------------------------------------------
+
+        rejected_result = (
+            supabase
+            .table("complaints")
+            .select(
+                "id",
+                count="exact"
+            )
+            .eq(
+                "status",
+                "Rejected"
+            )
+            .execute()
+        )
+
+        rejected = (
+            rejected_result.count or 0
+        )
+
+        # ----------------------------------------------------
+        # SEND DATA TO HTML
+        # ----------------------------------------------------
 
         return render_template(
-            "admin.html",
+            'admin.html',
             complaints=complaints,
             total=total,
             pending=pending,
@@ -1491,105 +1374,282 @@ def admin():
             rejected=rejected
         )
 
-    except Exception:
+    except Exception as err:
 
-        app.logger.exception(
-            "Database error while loading admin dashboard"
+        print(
+            "ADMIN DASHBOARD ERROR:",
+            repr(err)
         )
 
         return (
-            "Database error while loading admin dashboard ❌",
-            500
+            "Database error while loading "
+            "admin dashboard ❌"
         )
-
-    finally:
-
-        close_db(cursor, db)
 
 
 # ============================================================
-# UPDATE COMPLAINT STATUS
+# COMMON STATUS UPDATE FUNCTION
 # ============================================================
 
 def update_complaint_status(
-    complaint_id,
+    id,
     new_status
 ):
 
-    db = None
-    cursor = None
+    # --------------------------------------------------------
+    # ADMIN LOGIN CHECK
+    # --------------------------------------------------------
+
+    if not session.get(
+        'admin_logged_in'
+    ):
+        return redirect(
+            '/admin-login'
+        )
 
     try:
 
-        db = get_db_connection()
-        cursor = db.cursor()
+        # ----------------------------------------------------
+        # ALLOWED STATUSES
+        # ----------------------------------------------------
 
-        cursor.execute(
-            """
-            UPDATE complaints
-            SET status=%s
-            WHERE id=%s
-            """,
-            (
-                new_status,
-                complaint_id
+        allowed_statuses = {
+            "Pending",
+            "In Process",
+            "Resolved",
+            "Rejected"
+        }
+
+        if new_status not in allowed_statuses:
+
+            return (
+                "Invalid complaint status ❌"
+            ), 400
+
+        # ----------------------------------------------------
+        # GET CURRENT COMPLAINT
+        # ----------------------------------------------------
+
+        current_result = (
+            supabase
+            .table("complaints")
+            .select(
+                "id, complaint_id, status, email"
+            )
+            .eq(
+                "id",
+                id
+            )
+            .limit(1)
+            .execute()
+        )
+
+        if not current_result.data:
+
+            return (
+                "Complaint not found ❌"
+            ), 404
+
+        current_complaint = (
+            current_result.data[0]
+        )
+
+        current_status = (
+            current_complaint.get(
+                "status"
             )
         )
 
-        db.commit()
+        # ----------------------------------------------------
+        # VALID STATUS TRANSITIONS
+        #
+        # Pending:
+        #     In Process
+        #     Rejected
+        #
+        # In Process:
+        #     Resolved
+        #     Rejected
+        #
+        # Resolved:
+        #     No changes
+        #
+        # Rejected:
+        #     No changes
+        # ----------------------------------------------------
 
-        cursor.execute(
-            """
-            SELECT email, complaint_id
-            FROM complaints
-            WHERE id=%s
-            """,
-            (complaint_id,)
+        allowed_transitions = {
+
+            "Pending": {
+                "In Process",
+                "Rejected"
+            },
+
+            "In Process": {
+                "Resolved",
+                "Rejected"
+            },
+
+            "Resolved": set(),
+
+            "Rejected": set()
+        }
+
+        if new_status not in allowed_transitions.get(
+            current_status,
+            set()
+        ):
+
+            return (
+                f"Cannot change complaint status "
+                f"from '{current_status}' "
+                f"to '{new_status}' ❌"
+            ), 400
+
+        # ----------------------------------------------------
+        # CURRENT UTC TIME
+        # ----------------------------------------------------
+
+        updated_time = (
+            datetime.now(
+                timezone.utc
+            ).isoformat()
         )
 
-        data = cursor.fetchone()
+        # ----------------------------------------------------
+        # UPDATE STATUS
+        # ----------------------------------------------------
 
-        if data:
-
-            send_status_email(
-                data[0],
-                data[1],
-                new_status
+        result = (
+            supabase
+            .table("complaints")
+            .update({
+                "status": new_status,
+                "updated_date": updated_time
+            })
+            .eq(
+                "id",
+                id
             )
+            .execute()
+        )
+
+        if not result.data:
+
+            return (
+                "Complaint status update failed ❌"
+            )
+
+        # ----------------------------------------------------
+        # SEND STATUS EMAIL
+        # ----------------------------------------------------
+
+        send_status_email(
+            current_complaint.get(
+                "email"
+            ),
+            current_complaint.get(
+                "complaint_id"
+            ),
+            new_status
+        )
+
+        print(
+            "STATUS UPDATED:",
+            current_complaint.get(
+                "complaint_id"
+            ),
+            current_status,
+            "->",
+            new_status
+        )
 
         return redirect(
-            url_for("admin")
+            '/admin'
         )
 
-    except Exception:
+    except Exception as err:
 
-        app.logger.exception(
-            "Database error while updating complaint status"
+        print(
+            "STATUS UPDATE ERROR:",
+            repr(err)
         )
-
-        if db:
-
-            try:
-                db.rollback()
-            except Exception:
-                pass
 
         return (
-            "Database error while updating status ❌",
-            500
+            "Database error while "
+            "updating status ❌"
         )
 
-    finally:
 
-        close_db(cursor, db)
+# ============================================================
+# NEW DROPDOWN STATUS UPDATE ROUTE
+# ============================================================
+
+@app.route(
+    '/update-status/<int:id>',
+    methods=['POST']
+)
+def update_status(id):
+
+    # --------------------------------------------------------
+    # ADMIN LOGIN CHECK
+    # --------------------------------------------------------
+
+    if not session.get(
+        'admin_logged_in'
+    ):
+        return redirect(
+            '/admin-login'
+        )
+
+    # --------------------------------------------------------
+    # GET SELECTED STATUS
+    # --------------------------------------------------------
+
+    new_status = request.form.get(
+        'status'
+    )
+
+    if not new_status:
+
+        return (
+            "Please select a status ❌"
+        ), 400
+
+    # --------------------------------------------------------
+    # ALLOWED STATUS VALUES
+    # --------------------------------------------------------
+
+    allowed_statuses = {
+        "In Process",
+        "Resolved",
+        "Rejected"
+    }
+
+    if new_status not in allowed_statuses:
+
+        return (
+            "Invalid status selected ❌"
+        ), 400
+
+    # --------------------------------------------------------
+    # UPDATE COMPLAINT
+    # --------------------------------------------------------
+
+    return update_complaint_status(
+        id,
+        new_status
+    )
 
 
 # ============================================================
-# STATUS ROUTES
+# OLD STATUS UPDATE ROUTES
+#
+# These are kept so any existing links/bookmarks
+# continue to work.
 # ============================================================
 
-@app.route("/pending/<int:id>")
-@admin_required
+@app.route('/pending/<int:id>')
 def pending(id):
 
     return update_complaint_status(
@@ -1598,8 +1658,7 @@ def pending(id):
     )
 
 
-@app.route("/inprocess/<int:id>")
-@admin_required
+@app.route('/inprocess/<int:id>')
 def inprocess(id):
 
     return update_complaint_status(
@@ -1608,8 +1667,7 @@ def inprocess(id):
     )
 
 
-@app.route("/resolve/<int:id>")
-@admin_required
+@app.route('/resolve/<int:id>')
 def resolve(id):
 
     return update_complaint_status(
@@ -1618,8 +1676,7 @@ def resolve(id):
     )
 
 
-@app.route("/reject/<int:id>")
-@admin_required
+@app.route('/reject/<int:id>')
 def reject(id):
 
     return update_complaint_status(
@@ -1629,111 +1686,32 @@ def reject(id):
 
 
 # ============================================================
-# CONTACT
+# CONTACT PAGE
 # ============================================================
 
-@app.route("/contact")
+@app.route('/contact')
 def contact():
 
     return render_template(
-        "contact.html"
+        'contact.html'
     )
 
 
 # ============================================================
-# HEALTH CHECK
+# RUN APP
 # ============================================================
 
-@app.route("/health")
-def health():
-
-    db = None
-
-    try:
-
-        db = get_db_connection()
-
-        if db.is_connected():
-
-            return {
-                "status": "ok",
-                "database": "connected"
-            }, 200
-
-        return {
-            "status": "error",
-            "database": "disconnected"
-        }, 503
-
-    except Exception:
-
-        app.logger.exception(
-            "Health check database failure"
-        )
-
-        return {
-            "status": "error",
-            "database": "unavailable"
-        }, 503
-
-    finally:
-
-        close_db(db=db)
-
-
-# ============================================================
-# GLOBAL ERROR HANDLER
-# ============================================================
-
-@app.errorhandler(500)
-def internal_server_error(error):
-
-    app.logger.exception(
-        "GLOBAL 500 ERROR: %s",
-        error
-    )
-
-    return (
-        "Internal Server Error ❌ "
-        "Please check Render Logs.",
-        500
-    )
-
-
-# ============================================================
-# GLOBAL EXCEPTION HANDLER
-# ============================================================
-
-@app.errorhandler(Exception)
-def handle_exception(error):
-
-    app.logger.exception(
-        "UNHANDLED EXCEPTION: %s",
-        error
-    )
-
-    return (
-        "Unexpected server error ❌ "
-        "Please check Render Logs.",
-        500
-    )
-
-
-# ============================================================
-# RUN APPLICATION
-# ============================================================
-
-if __name__ == "__main__":
+if __name__ == '__main__':
 
     port = int(
         os.getenv(
             "PORT",
-            "5000"
+            5000
         )
     )
 
     app.run(
         host="0.0.0.0",
         port=port,
-        debug=False
+        debug=True
     )
