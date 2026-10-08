@@ -1,11 +1,13 @@
 
 from flask import Flask, render_template, request, redirect, session
 from supabase import create_client, Client
-from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 
+from email.message import EmailMessage
 import os
+import smtplib
+import ssl
 
 from datetime import datetime, timezone, timedelta
 
@@ -51,14 +53,13 @@ supabase: Client = create_client(
 # EMAIL CONFIGURATION
 # ============================================================
 
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
+app.config['MAIL_SERVER'] = os.getenv("MAIL_SERVER", "smtp.gmail.com")
+app.config['MAIL_PORT'] = int(os.getenv("MAIL_PORT", "587"))
 app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME")
 app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD")
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USE_SSL'] = False
-
-mail = Mail(app)
+app.config['MAIL_USE_TLS'] = os.getenv("MAIL_USE_TLS", "true").lower() == "true"
+app.config['MAIL_USE_SSL'] = os.getenv("MAIL_USE_SSL", "false").lower() == "true"
+app.config['MAIL_TIMEOUT'] = int(os.getenv("MAIL_TIMEOUT", "8"))
 
 
 # ============================================================
@@ -87,15 +88,42 @@ Thank you,
 CampusCare Admin
 """
 
-        msg = Message(
-            subject,
-            sender=app.config['MAIL_USERNAME'],
-            recipients=[student_email]
-        )
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = app.config['MAIL_USERNAME']
+        msg["To"] = student_email
+        msg.set_content(body)
 
-        msg.body = body
+        smtp_timeout = app.config['MAIL_TIMEOUT']
+        smtp_context = ssl.create_default_context()
 
-        mail.send(msg)
+        if app.config['MAIL_USE_SSL']:
+            with smtplib.SMTP_SSL(
+                app.config['MAIL_SERVER'],
+                app.config['MAIL_PORT'],
+                timeout=smtp_timeout,
+                context=smtp_context
+            ) as server:
+                if app.config['MAIL_USERNAME'] and app.config['MAIL_PASSWORD']:
+                    server.login(
+                        app.config['MAIL_USERNAME'],
+                        app.config['MAIL_PASSWORD']
+                    )
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(
+                app.config['MAIL_SERVER'],
+                app.config['MAIL_PORT'],
+                timeout=smtp_timeout
+            ) as server:
+                if app.config['MAIL_USE_TLS']:
+                    server.starttls(context=smtp_context)
+                if app.config['MAIL_USERNAME'] and app.config['MAIL_PASSWORD']:
+                    server.login(
+                        app.config['MAIL_USERNAME'],
+                        app.config['MAIL_PASSWORD']
+                    )
+                server.send_message(msg)
 
         print(
             f"Status email sent to {student_email} "
