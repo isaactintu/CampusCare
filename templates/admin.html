@@ -168,7 +168,7 @@
                 Recent Complaints
             </h2>
 
-            <form class="complaint-filters" method="GET" action="/admin">
+            <form class="complaint-filters" id="complaintFilters" method="GET" action="/admin">
                 <div class="filter-field">
                     <label for="category-filter">Category</label>
                     <select id="category-filter" name="category">
@@ -225,7 +225,7 @@
                 </p>
             </form>
 
-            <table>
+            <table id="complaintsTable">
 
                 <thead>
 
@@ -750,6 +750,101 @@
 
             }
         );
+
+
+        /*
+         * Populate and apply complaint filters in the browser as well as
+         * supporting the server-side GET filters when JavaScript is disabled.
+         */
+        const filterForm = document.getElementById("complaintFilters");
+        const complaintsTable = document.getElementById("complaintsTable");
+
+        if (filterForm && complaintsTable) {
+            const tableBody = complaintsTable.querySelector("tbody");
+            const complaintRows = Array.from(tableBody.querySelectorAll("tr"))
+                .filter(row => !row.classList.contains("no-complaints") && row.cells.length >= 8);
+            const categorySelect = filterForm.elements.namedItem("category");
+            const departmentSelect = filterForm.elements.namedItem("department");
+            const statusSelect = filterForm.elements.namedItem("status");
+            const dateFromInput = filterForm.elements.namedItem("date_from");
+            const dateToInput = filterForm.elements.namedItem("date_to");
+            const resultCount = filterForm.querySelector(".filter-count");
+            let emptyRow = tableBody.querySelector(".no-complaints");
+
+            function populateSelect(select, cellIndex, defaultText) {
+                const selectedValue = select.value;
+                select.replaceChildren(new Option(defaultText, ""));
+
+                const values = [...new Set(complaintRows.map(row =>
+                    row.cells[cellIndex].textContent.trim()
+                ).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+
+                values.forEach(value => select.add(new Option(value, value)));
+                select.value = values.includes(selectedValue) ? selectedValue : "";
+            }
+
+            function toIsoDate(displayDate) {
+                const datePart = displayDate.trim().split(/\s+/)[0];
+                const localDate = datePart.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+
+                if (localDate) {
+                    return `${localDate[3]}-${localDate[2]}-${localDate[1]}`;
+                }
+
+                return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : "";
+            }
+
+            function applyComplaintFilters(event) {
+                event.preventDefault();
+
+                const category = categorySelect.value;
+                const department = departmentSelect.value;
+                const status = statusSelect.value;
+                const dateFrom = dateFromInput.value;
+                const dateTo = dateToInput.value;
+                let visibleCount = 0;
+
+                complaintRows.forEach(row => {
+                    const submittedDate = toIsoDate(row.cells[5].textContent);
+                    const matches =
+                        (!category || row.cells[3].textContent.trim() === category) &&
+                        (!department || row.cells[2].textContent.trim() === department) &&
+                        (!status || row.cells[4].textContent.trim() === status) &&
+                        (!dateFrom || (submittedDate && submittedDate >= dateFrom)) &&
+                        (!dateTo || (submittedDate && submittedDate <= dateTo));
+
+                    row.hidden = !matches;
+                    if (matches) visibleCount += 1;
+                });
+
+                if (!emptyRow) {
+                    emptyRow = document.createElement("tr");
+                    emptyRow.className = "no-complaints";
+                    emptyRow.innerHTML = '<td colspan="8">No complaints match the selected filters.</td>';
+                    tableBody.appendChild(emptyRow);
+                }
+
+                emptyRow.hidden = visibleCount !== 0;
+                resultCount.textContent = `Showing ${visibleCount} of ${complaintRows.length} complaints`;
+
+                const params = new URLSearchParams();
+                if (category) params.set("category", category);
+                if (department) params.set("department", department);
+                if (status) params.set("status", status);
+                if (dateFrom) params.set("date_from", dateFrom);
+                if (dateTo) params.set("date_to", dateTo);
+                const query = params.toString();
+                history.replaceState(null, "", query ? `${window.location.pathname}?${query}` : window.location.pathname);
+            }
+
+            populateSelect(categorySelect, 3, "All categories");
+            populateSelect(departmentSelect, 2, "All departments");
+            filterForm.addEventListener("submit", applyComplaintFilters);
+
+            if (window.location.search) {
+                applyComplaintFilters(new Event("submit", { cancelable: true }));
+            }
+        }
 
     </script>
 
