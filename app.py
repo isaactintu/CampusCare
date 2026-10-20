@@ -49,35 +49,121 @@ supabase: Client = create_client(
 )
 
 
-# ============================================================
-# EMAIL CONFIGURATION
-# ============================================================
+# # ============================================================
+# # EMAIL CONFIGURATION
+# # ============================================================
 
-app.config['MAIL_SERVER'] = os.getenv("MAIL_SERVER", "smtp.gmail.com")
-app.config['MAIL_PORT'] = int(os.getenv("MAIL_PORT", "587"))
-app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME")
-app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD")
-app.config['MAIL_USE_TLS'] = os.getenv("MAIL_USE_TLS", "true").lower() == "true"
-app.config['MAIL_USE_SSL'] = os.getenv("MAIL_USE_SSL", "false").lower() == "true"
-app.config['MAIL_TIMEOUT'] = int(os.getenv("MAIL_TIMEOUT", "8"))
+# app.config['MAIL_SERVER'] = os.getenv("MAIL_SERVER", "smtp.gmail.com")
+# app.config['MAIL_PORT'] = int(os.getenv("MAIL_PORT", "587"))
+# app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME")
+# app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD")
+# app.config['MAIL_USE_TLS'] = os.getenv("MAIL_USE_TLS", "true").lower() == "true"
+# app.config['MAIL_USE_SSL'] = os.getenv("MAIL_USE_SSL", "false").lower() == "true"
+# app.config['MAIL_TIMEOUT'] = int(os.getenv("MAIL_TIMEOUT", "8"))
 
 
-# ============================================================
-# EMAIL FUNCTION
-# ============================================================
+# # ============================================================
+# # EMAIL FUNCTION
+# # ============================================================
+
+# def send_status_email(student_email, complaint_id, status):
+
+#     try:
+
+#         if not student_email:
+#             print("No student email available.")
+#             return
+
+#         subject = "Complaint Status Updated"
+
+#         body = f"""
+# Dear Student,
+
+# Your complaint status has been updated.
+
+# Complaint ID: {complaint_id}
+# Current Status: {status}
+
+# Thank you,
+# CampusCare Admin
+# """
+
+#         msg = EmailMessage()
+#         msg["Subject"] = subject
+#         msg["From"] = app.config['MAIL_USERNAME']
+#         msg["To"] = student_email
+#         msg.set_content(body)
+
+#         smtp_timeout = app.config['MAIL_TIMEOUT']
+#         smtp_context = ssl.create_default_context()
+
+#         if app.config['MAIL_USE_SSL']:
+#             with smtplib.SMTP_SSL(
+#                 app.config['MAIL_SERVER'],
+#                 app.config['MAIL_PORT'],
+#                 timeout=smtp_timeout,
+#                 context=smtp_context
+#             ) as server:
+#                 if app.config['MAIL_USERNAME'] and app.config['MAIL_PASSWORD']:
+#                     server.login(
+#                         app.config['MAIL_USERNAME'],
+#                         app.config['MAIL_PASSWORD']
+#                     )
+#                 server.send_message(msg)
+#         else:
+#             with smtplib.SMTP(
+#                 app.config['MAIL_SERVER'],
+#                 app.config['MAIL_PORT'],
+#                 timeout=smtp_timeout
+#             ) as server:
+#                 if app.config['MAIL_USE_TLS']:
+#                     server.starttls(context=smtp_context)
+#                 if app.config['MAIL_USERNAME'] and app.config['MAIL_PASSWORD']:
+#                     server.login(
+#                         app.config['MAIL_USERNAME'],
+#                         app.config['MAIL_PASSWORD']
+#                     )
+#                 server.send_message(msg)
+
+#         print(
+#             f"Status email sent to {student_email} "
+#             f"for {complaint_id}: {status}"
+#         )
+
+#     except Exception as e:
+
+#         print("Email sending failed:", e)
+
+
 
 def send_status_email(student_email, complaint_id, status):
-
     try:
-
         if not student_email:
             print("No student email available.")
-            return
+            return False
 
-        subject = "Complaint Status Updated"
+        mail_server = app.config["MAIL_SERVER"]
+        mail_port = app.config["MAIL_PORT"]
+        mail_username = app.config["MAIL_USERNAME"]
+        mail_password = app.config["MAIL_PASSWORD"]
+        mail_use_tls = app.config["MAIL_USE_TLS"]
+        mail_use_ssl = app.config["MAIL_USE_SSL"]
+        mail_timeout = app.config["MAIL_TIMEOUT"]
 
-        body = f"""
-Dear Student,
+        if not mail_username or not mail_password:
+            print("SMTP username or password is missing.")
+            return False
+
+        if mail_use_tls and mail_use_ssl:
+            print("Configuration error: TLS and SSL cannot both be enabled.")
+            return False
+
+        msg = EmailMessage()
+        msg["Subject"] = "Complaint Status Updated"
+        msg["From"] = mail_username
+        msg["To"] = student_email
+        msg.set_content(
+            f"""Dear Student,
 
 Your complaint status has been updated.
 
@@ -87,53 +173,54 @@ Current Status: {status}
 Thank you,
 CampusCare Admin
 """
+        )
 
-        msg = EmailMessage()
-        msg["Subject"] = subject
-        msg["From"] = app.config['MAIL_USERNAME']
-        msg["To"] = student_email
-        msg.set_content(body)
+        context = ssl.create_default_context()
 
-        smtp_timeout = app.config['MAIL_TIMEOUT']
-        smtp_context = ssl.create_default_context()
-
-        if app.config['MAIL_USE_SSL']:
-            with smtplib.SMTP_SSL(
-                app.config['MAIL_SERVER'],
-                app.config['MAIL_PORT'],
-                timeout=smtp_timeout,
-                context=smtp_context
+        if mail_use_ssl:
+            smtp_class = smtplib.SMTP_SSL
+            with smtp_class(
+                mail_server,
+                mail_port,
+                timeout=mail_timeout,
+                context=context
             ) as server:
-                if app.config['MAIL_USERNAME'] and app.config['MAIL_PASSWORD']:
-                    server.login(
-                        app.config['MAIL_USERNAME'],
-                        app.config['MAIL_PASSWORD']
-                    )
+                server.login(mail_username, mail_password)
                 server.send_message(msg)
+
         else:
             with smtplib.SMTP(
-                app.config['MAIL_SERVER'],
-                app.config['MAIL_PORT'],
-                timeout=smtp_timeout
+                mail_server,
+                mail_port,
+                timeout=mail_timeout
             ) as server:
-                if app.config['MAIL_USE_TLS']:
-                    server.starttls(context=smtp_context)
-                if app.config['MAIL_USERNAME'] and app.config['MAIL_PASSWORD']:
-                    server.login(
-                        app.config['MAIL_USERNAME'],
-                        app.config['MAIL_PASSWORD']
-                    )
+                server.ehlo()
+
+                if mail_use_tls:
+                    server.starttls(context=context)
+                    server.ehlo()
+
+                server.login(mail_username, mail_password)
                 server.send_message(msg)
 
         print(
-            f"Status email sent to {student_email} "
-            f"for {complaint_id}: {status}"
+            f"Status email sent successfully for complaint "
+            f"{complaint_id}"
         )
+        return True
+
+    except (OSError, smtplib.SMTPException) as e:
+        print(
+            f"SMTP error for complaint {complaint_id}: "
+            f"{type(e).__name__}: {e}"
+        )
+        return False
 
     except Exception as e:
-
-        print("Email sending failed:", e)
-
+        print(
+            f"Unexpected email error: {type(e).__name__}: {e}"
+        )
+        return False
 
 # ============================================================
 # DATE/TIME FORMAT FUNCTION
