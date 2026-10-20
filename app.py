@@ -61,17 +61,24 @@ app.config['MAIL_USE_TLS'] = os.getenv("MAIL_USE_TLS", "true").lower() == "true"
 app.config['MAIL_USE_SSL'] = os.getenv("MAIL_USE_SSL", "false").lower() == "true"
 app.config['MAIL_TIMEOUT'] = int(os.getenv("MAIL_TIMEOUT", "20"))
 
+# ============================================================
+# EMAIL FUNCTION USING YAGMAIL
+# ============================================================
 
-# ============================================================
-# EMAIL FUNCTION
-# ============================================================
+import yagmail
 
 def send_status_email(student_email, complaint_id, status):
 
     try:
-
         if not student_email:
             print("No student email available.")
+            return
+
+        mail_username = app.config['MAIL_USERNAME']
+        mail_password = app.config['MAIL_PASSWORD']
+
+        if not mail_username or not mail_password:
+            print("Email username or password is not configured.")
             return
 
         subject = "Complaint Status Updated"
@@ -88,42 +95,21 @@ Thank you,
 CampusCare Admin
 """
 
-        msg = EmailMessage()
-        msg["Subject"] = subject
-        msg["From"] = app.config['MAIL_USERNAME']
-        msg["To"] = student_email
-        msg.set_content(body)
+        # Connect to Gmail using yagmail
+        yag = yagmail.SMTP(
+            user=mail_username,
+            password=mail_password
+        )
 
-        smtp_timeout = app.config['MAIL_TIMEOUT']
-        smtp_context = ssl.create_default_context()
+        # Send the email
+        yag.send(
+            to = student_email,
+            subject = subject,
+            contents=body
+        )
 
-        if app.config['MAIL_USE_SSL']:
-            with smtplib.SMTP_SSL(
-                app.config['MAIL_SERVER'],
-                app.config['MAIL_PORT'],
-                timeout=smtp_timeout,
-                context=smtp_context
-            ) as server:
-                if app.config['MAIL_USERNAME'] and app.config['MAIL_PASSWORD']:
-                    server.login(
-                        app.config['MAIL_USERNAME'],
-                        app.config['MAIL_PASSWORD']
-                    )
-                server.send_message(msg)
-        else:
-            with smtplib.SMTP(
-                app.config['MAIL_SERVER'],
-                app.config['MAIL_PORT'],
-                timeout=smtp_timeout
-            ) as server:
-                if app.config['MAIL_USE_TLS']:
-                    server.starttls(context=smtp_context)
-                if app.config['MAIL_USERNAME'] and app.config['MAIL_PASSWORD']:
-                    server.login(
-                        app.config['MAIL_USERNAME'],
-                        app.config['MAIL_PASSWORD']
-                    )
-                server.send_message(msg)
+        # Close the SMTP connection
+        yag.close()
 
         print(
             f"Status email sent to {student_email} "
@@ -131,8 +117,78 @@ CampusCare Admin
         )
 
     except Exception as e:
-
         print("Email sending failed:", e)
+# # ============================================================
+# # EMAIL FUNCTION
+# # ============================================================
+
+# def send_status_email(student_email, complaint_id, status):
+
+#     try:
+
+#         if not student_email:
+#             print("No student email available.")
+#             return
+
+#         subject = "Complaint Status Updated"
+
+#         body = f"""
+# Dear Student,
+
+# Your complaint status has been updated.
+
+# Complaint ID: {complaint_id}
+# Current Status: {status}
+
+# Thank you,
+# CampusCare Admin
+# """
+
+#         msg = EmailMessage()
+#         msg["Subject"] = subject
+#         msg["From"] = app.config['MAIL_USERNAME']
+#         msg["To"] = student_email
+#         msg.set_content(body)
+
+#         smtp_timeout = app.config['MAIL_TIMEOUT']
+#         smtp_context = ssl.create_default_context()
+
+#         if app.config['MAIL_USE_SSL']:
+#             with smtplib.SMTP_SSL(
+#                 app.config['MAIL_SERVER'],
+#                 app.config['MAIL_PORT'],
+#                 timeout=smtp_timeout,
+#                 context=smtp_context
+#             ) as server:
+#                 if app.config['MAIL_USERNAME'] and app.config['MAIL_PASSWORD']:
+#                     server.login(
+#                         app.config['MAIL_USERNAME'],
+#                         app.config['MAIL_PASSWORD']
+#                     )
+#                 server.send_message(msg)
+#         else:
+#             with smtplib.SMTP(
+#                 app.config['MAIL_SERVER'],
+#                 app.config['MAIL_PORT'],
+#                 timeout=smtp_timeout
+#             ) as server:
+#                 if app.config['MAIL_USE_TLS']:
+#                     server.starttls(context=smtp_context)
+#                 if app.config['MAIL_USERNAME'] and app.config['MAIL_PASSWORD']:
+#                     server.login(
+#                         app.config['MAIL_USERNAME'],
+#                         app.config['MAIL_PASSWORD']
+#                     )
+#                 server.send_message(msg)
+
+#         print(
+#             f"Status email sent to {student_email} "
+#             f"for {complaint_id}: {status}"
+#         )
+
+#     except Exception as e:
+
+#         print("Email sending failed:", e)
 
 
 
