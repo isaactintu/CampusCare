@@ -1804,40 +1804,40 @@ def update_status(id):
 # continue to work.
 # ============================================================
 
-@app.route('/pending/<int:id>')
-def pending(id):
+# @app.route('/pending/<int:id>')
+# def pending(id):
 
-    return update_complaint_status(
-        id,
-        "Pending"
-    )
-
-
-@app.route('/inprocess/<int:id>')
-def inprocess(id):
-
-    return update_complaint_status(
-        id,
-        "In Process"
-    )
+#     return update_complaint_status(
+#         id,
+#         "Pending"
+#     )
 
 
-@app.route('/resolve/<int:id>')
-def resolve(id):
+# @app.route('/inprocess/<int:id>')
+# def inprocess(id):
 
-    return update_complaint_status(
-        id,
-        "Resolved"
-    )
+#     return update_complaint_status(
+#         id,
+#         "In Process"
+#     )
 
 
-@app.route('/reject/<int:id>')
-def reject(id):
+# @app.route('/resolve/<int:id>')
+# def resolve(id):
 
-    return update_complaint_status(
-        id,
-        "Rejected"
-    )
+#     return update_complaint_status(
+#         id,
+#         "Resolved"
+#     )
+
+
+# @app.route('/reject/<int:id>')
+# def reject(id):
+
+#     return update_complaint_status(
+#         id,
+#         "Rejected"
+#     )
 
 # ============================================================
 # CONTACT PAGE
