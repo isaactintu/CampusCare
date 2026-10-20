@@ -5,9 +5,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 
 from email.message import EmailMessage
+import json
 import os
 import smtplib
 import ssl
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 from datetime import datetime, timezone, timedelta
 
@@ -87,6 +90,52 @@ Current Status: {status}
 Thank you,
 CampusCare Admin
 """
+
+        resend_api_key = os.getenv("RESEND_API_KEY")
+
+        if resend_api_key:
+            sender = os.getenv("MAIL_FROM")
+            if not sender:
+                raise RuntimeError(
+                    "MAIL_FROM must be configured with a verified sender address."
+                )
+
+            payload = json.dumps({
+                "from": sender,
+                "to": [student_email],
+                "subject": subject,
+                "text": body
+            }).encode("utf-8")
+            api_request = Request(
+                "https://api.resend.com/emails",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {resend_api_key}",
+                    "Content-Type": "application/json"
+                },
+                method="POST"
+            )
+
+            try:
+                with urlopen(
+                    api_request,
+                    timeout=app.config['MAIL_TIMEOUT']
+                ) as response:
+                    if response.status >= 300:
+                        raise RuntimeError(
+                            f"Resend returned HTTP {response.status}."
+                        )
+            except HTTPError as error:
+                error_body = error.read().decode("utf-8", errors="replace")
+                raise RuntimeError(
+                    f"Resend returned HTTP {error.code}: {error_body}"
+                ) from error
+
+            print(
+                f"Status email sent to {student_email} "
+                f"for {complaint_id}: {status}"
+            )
+            return
 
         msg = EmailMessage()
         msg["Subject"] = subject
@@ -1190,6 +1239,68 @@ def admin():
             complaints_result.data or []
         )
 
+        # ----------------------------------------------------
+        # FILTER COMPLAINTS
+        # ----------------------------------------------------
+
+        selected_category = request.args.get(
+            "category", ""
+        ).strip()
+        selected_department = request.args.get(
+            "department", ""
+        ).strip()
+        selected_status = request.args.get(
+            "status", ""
+        ).strip()
+        date_from = request.args.get(
+            "date_from", ""
+        ).strip()
+        date_to = request.args.get(
+            "date_to", ""
+        ).strip()
+
+        categories = sorted({
+            complaint.get("category")
+            for complaint in complaints_data
+            if complaint.get("category")
+        })
+        departments = sorted({
+            complaint.get("department")
+            for complaint in complaints_data
+            if complaint.get("department")
+        })
+
+        def is_valid_filter_date(value):
+            try:
+                datetime.strptime(value, "%Y-%m-%d")
+                return True
+            except ValueError:
+                return False
+
+        if not is_valid_filter_date(date_from):
+            date_from = ""
+        if not is_valid_filter_date(date_to):
+            date_to = ""
+
+        filtered_complaints_data = []
+        for complaint in complaints_data:
+            submitted_date = str(
+                complaint.get("submitted_date") or ""
+            )[:10]
+
+            if selected_category and complaint.get("category") != selected_category:
+                continue
+            if selected_department and complaint.get("department") != selected_department:
+                continue
+            if selected_status and complaint.get("status") != selected_status:
+                continue
+            if date_from and (not submitted_date or submitted_date < date_from):
+                continue
+            if date_to and (not submitted_date or submitted_date > date_to):
+                continue
+
+            filtered_complaints_data.append(complaint)
+
         complaints = []
 
         # ----------------------------------------------------
@@ -1214,7 +1325,7 @@ def admin():
         # complaint[12] = updated date
         # ----------------------------------------------------
 
-        for complaint in complaints_data:
+        for complaint in filtered_complaints_data:
 
             complaint_tuple = (
 
@@ -1395,6 +1506,14 @@ def admin():
         return render_template(
             'admin.html',
             complaints=complaints,
+            categories=categories,
+            departments=departments,
+            selected_category=selected_category,
+            selected_department=selected_department,
+            selected_status=selected_status,
+            date_from=date_from,
+            date_to=date_to,
+            filtered_count=len(complaints),
             total=total,
             pending=pending,
             inprocess=inprocess,
