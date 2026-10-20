@@ -5,12 +5,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 
 from email.message import EmailMessage
-import json
 import os
 import smtplib
 import ssl
-from urllib.error import HTTPError
-from urllib.request import Request, urlopen
 
 from datetime import datetime, timezone, timedelta
 
@@ -90,52 +87,6 @@ Current Status: {status}
 Thank you,
 CampusCare Admin
 """
-
-        resend_api_key = os.getenv("RESEND_API_KEY")
-
-        if resend_api_key:
-            sender = os.getenv("MAIL_FROM")
-            if not sender:
-                raise RuntimeError(
-                    "MAIL_FROM must be configured with a verified sender address."
-                )
-
-            payload = json.dumps({
-                "from": sender,
-                "to": [student_email],
-                "subject": subject,
-                "text": body
-            }).encode("utf-8")
-            api_request = Request(
-                "https://api.resend.com/emails",
-                data=payload,
-                headers={
-                    "Authorization": f"Bearer {resend_api_key}",
-                    "Content-Type": "application/json"
-                },
-                method="POST"
-            )
-
-            try:
-                with urlopen(
-                    api_request,
-                    timeout=app.config['MAIL_TIMEOUT']
-                ) as response:
-                    if response.status >= 300:
-                        raise RuntimeError(
-                            f"Resend returned HTTP {response.status}."
-                        )
-            except HTTPError as error:
-                error_body = error.read().decode("utf-8", errors="replace")
-                raise RuntimeError(
-                    f"Resend returned HTTP {error.code}: {error_body}"
-                ) from error
-
-            print(
-                f"Status email sent to {student_email} "
-                f"for {complaint_id}: {status}"
-            )
-            return
 
         msg = EmailMessage()
         msg["Subject"] = subject
