@@ -4,4 +4,4 @@ Flask-Mail
 Werkzeug
 python-dotenv
 gunicorn
-resend
+yagmail
